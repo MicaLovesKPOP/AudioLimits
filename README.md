@@ -1,10 +1,10 @@
-# Audio Limits
+# Audio Limits [![Download](https://img.shields.io/badge/Download-Pre--release-orange)](https://github.com/MicaLovesKPOP/AudioLimits/releases/tag/v1.0.0-rc.2)
 
 Audio Limits is a small Windows utility for setting a quieter maximum for each playback device while leaving the normal Windows volume slider at 0–100%.
 
 It uses [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) as the persistent attenuation backend. Once a limit is configured, Equalizer APO keeps applying it even when Audio Limits itself is not open.
 
-![Audio Limits devices screen](docs/images/audio-limits.png)
+![Audio Limits devices screen](docs/images/audio-limits-main.png)
 
 > **Release status:** `1.0.0-rc.2` is a release candidate. The normal installed path and the extract-and-run path have been tested on real Windows hardware. The launcher's automatic prerequisite recovery on a genuinely clean PC is implemented but still awaiting a clean-VM validation.
 
