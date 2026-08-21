@@ -9,15 +9,16 @@
 - Notification-area lifecycle and custom WinUI tray menu were exercised, including pointer dismissal, Escape/Alt+F4 and immediate keyboard navigation.
 - Setup fresh/install/update/repair behavior was exercised.
 - Setup prerequisite detection correctly left already-present .NET/VC++ runtimes alone and installed the missing Windows App Runtime on the target PC.
-- The self-contained root launcher opens the framework-dependent app normally on the healthy target PC.
+- The self-contained root launcher opens the framework-dependent app normally on the healthy target PC. Its measured process lifetime was about 1.09 s, with about 649 ms before it started the app host, so routine launches now bypass it after prerequisites are prepared.
 - The complete application folder was manually relocated/copied and launched successfully from the new location.
 
 ## rc.2 distribution invariants
 
 - Public binary assets are exactly `AudioLimits-Setup.exe` and `AudioLimits-1.0.0-rc.2-x64.zip`.
 - Both contain/use the same canonical application layout: root `AudioLimits.exe`, internal payload under `app\`.
-- Root `AudioLimits.exe` is the only public entry point.
-- Start-with-Windows resolves to the root launcher in the canonical layout.
+- Root `AudioLimits.exe` remains the obvious manual first-run/recovery entry point for extracted/copied folders.
+- Setup-created Start-menu/desktop shortcuts and Setup's post-install launch target `app\AudioLimits.App.exe` directly.
+- Start with Windows targets `app\AudioLimits.App.exe --background` directly and migrates the previous root-launcher registration when encountered.
 - The no-install ZIP is not described as portable; settings remain in `%LOCALAPPDATA%\AudioLimits`.
 - Setup remains the recommended distribution and remains registered in Windows Installed Apps.
 - Uninstallation must not remove shared Microsoft runtimes.

@@ -320,6 +320,7 @@ $report = @(
     "- AudioLimits-$version-x64.zip is the only alternative public binary: extract the complete Audio Limits folder and run its root AudioLimits.exe.",
     "- The ZIP is intentionally not called portable; settings remain in the normal per-user Audio Limits settings location and Start with Windows can still create normal user integration.",
     "- Root AudioLimits.exe checks .NET 8 Desktop Runtime x64, Visual C++ v14 x64 (14.50+), and Windows App Runtime 2.3.1 and can offer to acquire missing components from Microsoft.",
+    "- Setup-created shortcuts/post-install launch and Start with Windows target app\AudioLimits.App.exe directly after prerequisites are prepared; root AudioLimits.exe remains the manual first-run/recovery entry.",
     "- The healthy-machine and relocated-folder launcher paths have been real-Windows tested. Clean-machine missing-prerequisite recovery is deliberately still marked unverified until a VM test is performed.",
     "- Equalizer APO remains an app-level interactive dependency because playback-device selection requires user interaction."
 )

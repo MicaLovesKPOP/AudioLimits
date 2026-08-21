@@ -11,7 +11,7 @@ This file records the final practical validation state before the repository is 
 - Notification-area lifecycle and custom Fluent tray menu were validated, including pointer dismissal, Escape/Alt+F4 dismissal and immediate keyboard navigation.
 - Setup fresh/install/update/repair flow was validated, including Just for me / all-users scope and custom install location.
 - Setup correctly avoided reinstalling already-present .NET/VC++ prerequisites and acquired the missing Windows App Runtime on the target PC.
-- Installed Audio Limits launches through the root bootstrap launcher.
+- The root bootstrap launcher opens Audio Limits normally on the healthy target PC; measured launcher process lifetime was about 1.09 s, with about 649 ms from first launcher log entry to starting `AudioLimits.App.exe`.
 - Copying/relocating the complete application folder and running the root launcher works on the healthy target PC.
 
 ## rc.2 packaging checks
@@ -25,7 +25,12 @@ Run `Build-PreRelease.cmd` and verify:
 - `release\` contains no other project-generated user-facing artifact;
 - the ZIP contains `Audio Limits\AudioLimits.exe` and `Audio Limits\app\AudioLimits.App.exe`;
 - `publish\AudioLimits.exe` opens Audio Limits normally;
-- Start with Windows points to the root launcher, not the internal app host.
+- root `AudioLimits.exe` still opens Audio Limits normally;
+- direct `app\AudioLimits.App.exe` opens Audio Limits normally without the bootstrap check;
+- Setup-created Start-menu and optional desktop shortcuts target `app\AudioLimits.App.exe`;
+- Setup's post-install **Launch Audio Limits** action targets `app\AudioLimits.App.exe`;
+- Start with Windows registers `app\AudioLimits.App.exe --background`;
+- an existing rc.2/pre.30-style startup registration that points to root `AudioLimits.exe --background` is migrated to the direct app host when Audio Limits next starts.
 
 ## Deferred clean-VM test
 

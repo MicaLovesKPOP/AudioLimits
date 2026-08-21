@@ -5,7 +5,9 @@
 - Promote the validated WinUI codebase to a GitHub-ready release candidate without changing limiter/audio behavior.
 - Standardize both supported distributions on one canonical application layout: user-facing `AudioLimits.exe` at the root and framework-dependent WinUI implementation files under `app\`.
 - Keep `AudioLimits-Setup.exe` as the recommended normal installer and add one no-install `AudioLimits-1.0.0-rc.2-x64.zip`; retire public Portable/Standalone terminology and artifacts.
-- Make Start with Windows resolve the root prerequisite launcher from the new `app\` subfolder layout.
+- Route routine launch paths directly to `app\AudioLimits.App.exe` after prerequisites are prepared: Setup-created Start-menu/desktop shortcuts, Setup's post-install launch, and Start with Windows no longer pay the bootstrapper cost on every launch.
+- Migrate an existing Start-with-Windows registration that still points at the root prerequisite launcher to the direct app host when the app next starts.
+- Keep root `AudioLimits.exe` as the obvious manual first-run/recovery entry point for freshly extracted/copied folders and missing-prerequisite repair.
 - Keep Setup state-aware (fresh/update/repair/downgrade protection) and clean known pre.30 root payload files during upgrade to the subfolder layout.
 - Keep the self-contained launcher prerequisite policy unchanged; healthy-machine launch and full-folder relocation have passed real-Windows testing.
 - Explicitly defer only the clean-VM missing-prerequisite recovery path and mark rc.2 as a GitHub pre-release until that test is performed.

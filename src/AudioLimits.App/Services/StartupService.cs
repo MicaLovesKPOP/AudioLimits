@@ -1,3 +1,4 @@
+using AudioLimits.Core.Services;
 using Microsoft.Win32;
 
 namespace AudioLimits.App.Services;
@@ -11,39 +12,13 @@ public sealed class StartupService
         Environment.ProcessPath
         ?? throw new InvalidOperationException("Could not determine the Audio Limits executable path.");
 
-    // Installed/no-install ZIP builds keep the framework-dependent WinUI host in
-    // an app subfolder and a small self-contained AudioLimits.exe launcher one level
-    // above it. Route Windows startup through that launcher so a copied/extracted
-    // application can repair missing Microsoft runtimes before WinUI starts.
-    // Development builds without that canonical layout register the current process.
-    private static string LaunchExecutablePath
-    {
-        get
-        {
-            var current = CurrentExecutablePath;
-            var directory = Path.GetDirectoryName(current);
-            if (string.IsNullOrWhiteSpace(directory))
-                return current;
-
-            var siblingLauncher = Path.Combine(directory, "AudioLimits.exe");
-            if (!string.Equals(current, siblingLauncher, StringComparison.OrdinalIgnoreCase) && File.Exists(siblingLauncher))
-                return siblingLauncher;
-
-            var parent = Directory.GetParent(directory)?.FullName;
-            if (string.Equals(Path.GetFileName(directory), "app", StringComparison.OrdinalIgnoreCase) &&
-                !string.IsNullOrWhiteSpace(parent))
-            {
-                var parentLauncher = Path.Combine(parent, "AudioLimits.exe");
-                if (File.Exists(parentLauncher))
-                    return parentLauncher;
-            }
-
-            return current;
-        }
-    }
-
     private static string ExpectedCommand =>
-        $"\"{LaunchExecutablePath}\" --background";
+        $"\"{CurrentExecutablePath}\" --background";
+
+    public StartupService()
+    {
+        MigrateLegacyLauncherRegistration();
+    }
 
     public bool IsEnabled
     {
@@ -64,5 +39,39 @@ public sealed class StartupService
             key.SetValue(ValueName, ExpectedCommand, RegistryValueKind.String);
         else
             key.DeleteValue(ValueName, throwOnMissingValue: false);
+    }
+
+    private static void MigrateLegacyLauncherRegistration()
+    {
+        try
+        {
+            var appPath = CurrentExecutablePath;
+            var appDirectory = Path.GetDirectoryName(appPath);
+            if (string.IsNullOrWhiteSpace(appDirectory) ||
+                !string.Equals(Path.GetFileName(appDirectory), "app", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var rootDirectory = Directory.GetParent(appDirectory)?.FullName;
+            if (string.IsNullOrWhiteSpace(rootDirectory))
+                return;
+
+            var launcherPath = Path.Combine(rootDirectory, "AudioLimits.exe");
+            if (!File.Exists(launcherPath))
+                return;
+
+            var legacyCommand = $"\"{launcherPath}\" --background";
+            using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
+            if (key?.GetValue(ValueName) is not string current ||
+                !string.Equals(current.Trim(), legacyCommand, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            key.SetValue(ValueName, ExpectedCommand, RegistryValueKind.String);
+            AppLog.Info("Migrated Start with Windows from the prerequisite launcher to the direct app host.");
+        }
+        catch (Exception ex)
+        {
+            // A best-effort migration must never prevent Audio Limits from starting.
+            AppLog.Warn("Could not migrate the legacy Start with Windows registration: " + ex.Message);
+        }
     }
 }

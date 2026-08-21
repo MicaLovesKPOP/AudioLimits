@@ -20,7 +20,7 @@ Audio Limits\
    └─ AudioLimits.App.exe + supporting files
 ```
 
-The root launcher is the only public entry point. `AudioLimits.App.exe` is internal. `StartupService` must continue to resolve the launcher one directory above the canonical `app` folder.
+The root launcher is the obvious manual entry point for a freshly extracted/copied folder and for prerequisite recovery. Once prerequisites are prepared, routine Windows-created launch paths should bypass the bootstrapper: Setup-created shortcuts/post-install launch and Start with Windows target `app\AudioLimits.App.exe` directly. `StartupService` also migrates the previous root-launcher startup registration when it encounters it.
 
 ## Public release artifacts
 

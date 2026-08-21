@@ -2,7 +2,8 @@
 #define MyAppVersion "1.0.0-rc.2"
 #define MyAppPublisher "MicaLovesKPOP"
 #define MyAppURL "https://github.com/MicaLovesKPOP/AudioLimits"
-#define MyAppExeName "AudioLimits.exe"
+#define MyLauncherExeName "AudioLimits.exe"
+#define MyAppHostExeName "AudioLimits.App.exe"
 
 [Setup]
 AppId={{69677083-D9A2-434C-B865-ABF393073727}
@@ -19,7 +20,7 @@ DisableProgramGroupPage=yes
 OutputDir=..\release
 OutputBaseFilename=AudioLimits-Setup
 SetupIconFile=..\src\AudioLimits.App\Assets\AudioLimits.ico
-UninstallDisplayIcon={app}\AudioLimits.exe
+UninstallDisplayIcon={app}\{#MyLauncherExeName}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern dynamic
@@ -65,14 +66,14 @@ Type: filesandordirs; Name: "{app}\Assets"
 Type: filesandordirs; Name: "{app}\runtimes"
 
 [Icons]
-Name: "{autoprograms}\Audio Limits"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
-Name: "{autodesktop}\Audio Limits"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autoprograms}\Audio Limits"; Filename: "{app}\app\{#MyAppHostExeName}"; WorkingDir: "{app}\app"
+Name: "{autodesktop}\Audio Limits"; Filename: "{app}\app\{#MyAppHostExeName}"; WorkingDir: "{app}\app"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Launch Audio Limits"; Flags: nowait postinstall skipifsilent; Check: CanLaunchAfterInstall
+Filename: "{app}\app\{#MyAppHostExeName}"; Description: "Launch Audio Limits"; Flags: nowait postinstall skipifsilent; Check: CanLaunchAfterInstall
 
 [Code]
 const

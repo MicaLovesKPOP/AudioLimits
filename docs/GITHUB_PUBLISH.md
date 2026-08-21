@@ -29,7 +29,7 @@ Do not manually attach a source ZIP/tarball; GitHub generates those from the tag
 
 Audio Limits 1.0.0-rc.2 is the first GitHub-ready release candidate of the WinUI version.
 
-**Recommended:** `AudioLimits-Setup.exe` performs a normal Windows installation and automatically prepares missing Microsoft runtime prerequisites.
+**Recommended:** `AudioLimits-Setup.exe` performs a normal Windows installation and automatically prepares missing Microsoft runtime prerequisites. Routine installed launches go directly to the app after Setup has prepared those prerequisites.
 
 **No installation:** `AudioLimits-1.0.0-rc.2-x64.zip` can be extracted anywhere; run the root `AudioLimits.exe`. The implementation files are kept under `app\`. This is an extract-and-run distribution, not portable-state software.
 

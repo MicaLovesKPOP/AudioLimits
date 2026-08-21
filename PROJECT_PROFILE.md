@@ -18,9 +18,10 @@ Audio Limits\
    └─ ...
 ```
 
-- `AudioLimits.exe` is the only public application entry point. It is a compressed self-contained launcher with no WinUI dependency.
-- `app\AudioLimits.App.exe` is the framework-dependent WinUI host and is implementation detail.
-- Start-with-Windows routes through the root launcher.
+- `AudioLimits.exe` is the obvious manual first-run/recovery entry point. It is a compressed self-contained launcher with no WinUI dependency.
+- `app\AudioLimits.App.exe` is the framework-dependent WinUI host used directly by routine Windows-created launch paths after prerequisites are prepared.
+- Setup-created Start-menu/desktop shortcuts, Setup's post-install launch, and Start with Windows target the WinUI host directly to avoid paying bootstrapper cost on every normal launch.
+- `StartupService` migrates the previous root-launcher startup registration to the direct app host when encountered.
 - An intact copied/extracted folder remains runnable without pretending to be a Windows installation.
 
 ## Public GitHub binary policy
