@@ -4,6 +4,8 @@ Audio Limits is a small Windows utility for setting a quieter maximum for each p
 
 It uses [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) as the persistent attenuation backend. Once a limit is configured, Equalizer APO keeps applying it even when Audio Limits itself is not open.
 
+![Audio Limits devices screen](docs/images/audio-limits.png)
+
 > **Release status:** `1.0.0-rc.2` is a release candidate. The normal installed path and the extract-and-run path have been tested on real Windows hardware. The launcher's automatic prerequisite recovery on a genuinely clean PC is implemented but still awaiting a clean-VM validation.
 
 ## Download
