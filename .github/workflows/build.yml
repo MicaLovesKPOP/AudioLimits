@@ -1,0 +1,34 @@
+name: Build
+
+"on":
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup --no-progress -y
+
+      - name: Build, test, and package
+        shell: powershell
+        run: .\build.ps1
+
+      - name: Upload release-candidate binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: AudioLimits-windows-x64
+          path: release/*
+          if-no-files-found: error

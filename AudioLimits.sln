@@ -1,0 +1,36 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AudioLimits.Core", "src\AudioLimits.Core\AudioLimits.Core.csproj", "{3370440C-4A6D-454F-81BB-B5B4D71A16A3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AudioLimits.App", "src\AudioLimits.App\AudioLimits.App.csproj", "{E0071CCE-55ED-4222-A703-AA7B352452DE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AudioLimits.Launcher", "src\AudioLimits.Launcher\AudioLimits.Launcher.csproj", "{9F0621AE-6F97-4D78-A88A-84BC88719030}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AudioLimits.Core.Tests", "tests\AudioLimits.Core.Tests\AudioLimits.Core.Tests.csproj", "{B6A6B87D-20FE-4509-9768-E5BB61013874}"
+EndProject
+Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|x64 = Debug|x64
+        Release|x64 = Release|x64
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {3370440C-4A6D-454F-81BB-B5B4D71A16A3}.Debug|x64.ActiveCfg = Debug|Any CPU
+        {3370440C-4A6D-454F-81BB-B5B4D71A16A3}.Debug|x64.Build.0 = Debug|Any CPU
+        {3370440C-4A6D-454F-81BB-B5B4D71A16A3}.Release|x64.ActiveCfg = Release|Any CPU
+        {3370440C-4A6D-454F-81BB-B5B4D71A16A3}.Release|x64.Build.0 = Release|Any CPU
+        {E0071CCE-55ED-4222-A703-AA7B352452DE}.Debug|x64.ActiveCfg = Debug|Any CPU
+        {E0071CCE-55ED-4222-A703-AA7B352452DE}.Debug|x64.Build.0 = Debug|Any CPU
+        {E0071CCE-55ED-4222-A703-AA7B352452DE}.Release|x64.ActiveCfg = Release|Any CPU
+        {E0071CCE-55ED-4222-A703-AA7B352452DE}.Release|x64.Build.0 = Release|Any CPU
+        {9F0621AE-6F97-4D78-A88A-84BC88719030}.Debug|x64.ActiveCfg = Debug|Any CPU
+        {9F0621AE-6F97-4D78-A88A-84BC88719030}.Debug|x64.Build.0 = Debug|Any CPU
+        {9F0621AE-6F97-4D78-A88A-84BC88719030}.Release|x64.ActiveCfg = Release|Any CPU
+        {9F0621AE-6F97-4D78-A88A-84BC88719030}.Release|x64.Build.0 = Release|Any CPU
+        {B6A6B87D-20FE-4509-9768-E5BB61013874}.Debug|x64.ActiveCfg = Debug|Any CPU
+        {B6A6B87D-20FE-4509-9768-E5BB61013874}.Debug|x64.Build.0 = Debug|Any CPU
+        {B6A6B87D-20FE-4509-9768-E5BB61013874}.Release|x64.ActiveCfg = Release|Any CPU
+        {B6A6B87D-20FE-4509-9768-E5BB61013874}.Release|x64.Build.0 = Release|Any CPU
+    EndGlobalSection
+EndGlobal

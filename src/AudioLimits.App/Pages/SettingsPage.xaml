@@ -1,0 +1,81 @@
+<Page
+    x:Class="AudioLimits.App.Pages.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:toolkit="using:CommunityToolkit.WinUI.Controls">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <Grid MaxWidth="900"
+              HorizontalAlignment="Center"
+              Padding="32,26,32,36">
+            <StackPanel Spacing="20">
+                <TextBlock Text="Settings"
+                           Style="{StaticResource TitleTextBlockStyle}" />
+
+                <InfoBar x:Name="SettingsInfoBar"
+                         IsOpen="False"
+                         IsClosable="True" />
+
+                <StackPanel Spacing="6">
+                    <TextBlock Text="General"
+                               Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <toolkit:SettingsCard Header="Start Audio Limits with Windows"
+                                          Description="Runs startup checks in the background and keeps tray access available. Limits remain active when Audio Limits is closed.">
+                        <ToggleSwitch x:Name="StartupToggle"
+                                      Toggled="StartupToggle_Toggled"
+                                      AutomationProperties.Name="Start Audio Limits with Windows" />
+                    </toolkit:SettingsCard>
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Audio processing"
+                               Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <toolkit:SettingsCard x:Name="AudioProcessingCard"
+                                          Header="Playback devices">
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="10"
+                                    VerticalAlignment="Center">
+                            <TextBlock x:Name="AudioProcessingStatusText"
+                                       Visibility="Collapsed"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       VerticalAlignment="Center" />
+                            <Button x:Name="ManageAudioButton"
+                                    Click="ManageAudioButton_Click"
+                                    AutomationProperties.Name="Audio processing setup" />
+                        </StackPanel>
+                    </toolkit:SettingsCard>
+                    <toolkit:SettingsCard Header="Audio processing limitations"
+                                          Description="ASIO and exclusive-mode apps can bypass Windows shared audio processing. Audio Limits is not a hearing-protection control." />
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Diagnostics"
+                               Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <toolkit:SettingsCard Header="Diagnostic logs"
+                                          Description="Open the folder containing Audio Limits logs.">
+                        <Button Content="Open folder"
+                                Click="OpenLogsButton_Click"
+                                AutomationProperties.Name="Open diagnostic log folder" />
+                    </toolkit:SettingsCard>
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                    <TextBlock Text="About"
+                               Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <toolkit:SettingsCard Header="Audio Limits"
+                                          Description="Per-device maximum output control for Windows.">
+                        <TextBlock x:Name="VersionText"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </toolkit:SettingsCard>
+                    <toolkit:SettingsCard Header="Project on GitHub"
+                                          Description="Source code, releases, and issue tracking.">
+                        <Button Content="Open repository"
+                                Click="OpenGitHubButton_Click"
+                                AutomationProperties.Name="Open Audio Limits GitHub repository" />
+                    </toolkit:SettingsCard>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</Page>

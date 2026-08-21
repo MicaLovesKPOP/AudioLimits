@@ -1,0 +1,53 @@
+<Window
+    x:Class="AudioLimits.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop Kind="Base" />
+    </Window.SystemBackdrop>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TitleBar x:Name="AppTitleBar"
+                  Title="Audio Limits"
+                  IsBackButtonVisible="False"
+                  BackRequested="AppTitleBar_BackRequested">
+            <TitleBar.Resources>
+                <!-- The TitleBar's Content presenter is centered by default. Left-align it so the
+                     settings button begins immediately after the built-in title instead. -->
+                <HorizontalAlignment x:Key="TitleBarContentHorizontalAlignment">Left</HorizontalAlignment>
+                <Thickness x:Key="TitleBarTitleMargin">0,0,5,0</Thickness>
+            </TitleBar.Resources>
+            <TitleBar.IconSource>
+                <BitmapIconSource UriSource="ms-appx:///Assets/AudioLimits-AppIcon-32.png"
+                                  ShowAsMonochrome="False" />
+            </TitleBar.IconSource>
+            <TitleBar.Content>
+                <Button x:Name="SettingsButton"
+                        Width="20"
+                        Height="20"
+                        MinWidth="20"
+                        MinHeight="20"
+                        Padding="0"
+                        HorizontalAlignment="Left"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Style="{StaticResource SubtleButtonStyle}"
+                        Click="SettingsButton_Click"
+                        AutomationProperties.Name="Settings"
+                        ToolTipService.ToolTip="Settings">
+                    <FontIcon Glyph="&#xE713;" FontSize="16" />
+                </Button>
+            </TitleBar.Content>
+        </TitleBar>
+
+        <Frame x:Name="RootFrame"
+               Grid.Row="1"
+               Navigated="RootFrame_Navigated" />
+    </Grid>
+</Window>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <g fill="#111111" stroke="none">
+    <!-- speaker -->
+    <path d="M44 104 H78 L114 76 Q122 70 122 81 V175 Q122 186 114 180 L78 152 H44 Q36 152 36 144 V112 Q36 104 44 104 Z"/>
+    <!-- stop bar -->
+    <rect x="192" y="68" width="16" height="120" rx="8"/>
+  </g>
+  <!-- wave -->
+  <path d="M146 101 C164 117 164 139 146 155"
+        fill="none" stroke="#111111" stroke-width="16" stroke-linecap="round"/>
+</svg>
