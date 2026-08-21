@@ -58,20 +58,6 @@ Equalizer APO is different: device selection requires user interaction, so Audio
 
 Audio Limits is a convenience/safety aid, **not a hearing-protection guarantee**. Software or playback paths that bypass Equalizer APO can also bypass an Audio Limits cap. Hardware volume behavior varies by device.
 
-## Application folder layout
-
-Both Setup and the no-install ZIP use the same application layout:
-
-```text
-Audio Limits\
-├─ AudioLimits.exe          # user-facing prerequisite launcher
-└─ app\
-   ├─ AudioLimits.App.exe   # internal WinUI application host
-   └─ ...                   # app/runtime files
-```
-
-Shortcuts and Start-with-Windows integration always target the root `AudioLimits.exe` so the prerequisite check is retained if the folder is later moved or copied.
-
 ## Building from source
 
 Requirements for development:
