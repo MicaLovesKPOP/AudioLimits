@@ -2,9 +2,9 @@
 
 ## Current gate
 
-**1.0.0-rc.2 — GitHub-ready release candidate.**
+**1.0.0 — stable release.**
 
-The limiter/backend, Equalizer APO integration, WinUI UI, tray/lifecycle, state-aware Setup, and healthy/relocated launcher paths have passed real-Windows validation. rc.2 freezes that behavior and normalizes the public distribution layout.
+The limiter/backend, Equalizer APO integration, WinUI UI, tray/lifecycle, state-aware Setup, healthy/relocated launcher paths, and clean-machine prerequisite bootstrap have been validated to the intended 1.0.0 release gate.
 
 ## Canonical distribution layout
 
@@ -29,10 +29,10 @@ Audio Limits\
 Exactly two release assets are intentional:
 
 1. `AudioLimits-Setup.exe` — recommended normal installation.
-2. `AudioLimits-1.0.0-rc.2-x64.zip` — extract-and-run alternative containing the canonical `Audio Limits` folder.
+2. `AudioLimits-1.0.0-x64.zip` — extract-and-run alternative containing the canonical `Audio Limits` folder.
 
 Do not publish a separate Portable, Standalone, or ad-hoc raw EXE. The ZIP is not portable-state software: settings remain per-user and normal Windows integration can still be enabled.
 
-## Deferred validation
+## Prerequisite bootstrap
 
-The only architectural validation intentionally left for later is a clean Windows VM with missing Microsoft prerequisites. The root launcher already detects/downloads/signature-validates/installs them after consent, but that recovery path has not yet been exercised end-to-end on a genuinely clean machine.
+The root launcher detects missing .NET 8 Desktop Runtime, Visual C++ runtime, Windows App Runtime 2.3.1, and Equalizer APO; downloads only missing components; verifies downloads before execution; and presents native progress/cancellation UI. Playback-device selection in Equalizer APO remains explicit.

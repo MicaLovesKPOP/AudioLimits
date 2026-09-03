@@ -1,5 +1,5 @@
 #define MyAppName "Audio Limits"
-#define MyAppVersion "1.0.0-rc.2"
+#define MyAppVersion "1.0.0"
 #define MyAppPublisher "MicaLovesKPOP"
 #define MyAppURL "https://github.com/MicaLovesKPOP/AudioLimits"
 #define MyLauncherExeName "AudioLimits.exe"
@@ -73,7 +73,7 @@ Name: "{autodesktop}\Audio Limits"; Filename: "{app}\app\{#MyAppHostExeName}"; W
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 
 [Run]
-Filename: "{app}\app\{#MyAppHostExeName}"; Description: "Launch Audio Limits"; Flags: nowait postinstall skipifsilent; Check: CanLaunchAfterInstall
+Filename: "{app}\{#MyLauncherExeName}"; WorkingDir: "{app}"; Description: "Launch Audio Limits"; Flags: nowait postinstall skipifsilent; Check: CanLaunchAfterInstall
 
 [Code]
 const

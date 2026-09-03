@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-echo Audio Limits 1.0.0-rc.2 GitHub release-candidate build
+echo Audio Limits 1.0.0 GitHub release build
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\build.ps1"
 if errorlevel 1 (

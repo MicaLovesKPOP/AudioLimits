@@ -80,7 +80,7 @@ public sealed class EqualizerApoService
         }
     }
 
-    public void OpenDeviceSelector()
+    public Process OpenDeviceSelector()
     {
         var path = DeviceSelectorPath
                    ?? throw new FileNotFoundException(
@@ -91,16 +91,15 @@ public sealed class EqualizerApoService
                              "Could not determine Equalizer APO's installation folder.");
 
         // Launch the same way Explorer/Start-menu shortcuts launch a normal GUI app.
-        // v0.3 started Device Selector as a child process from Audio Limits' working
-        // context and reproduced a Qt platform-plugin initialization failure. Using
-        // ShellExecute plus Equalizer APO's own working directory avoids imposing any
-        // Audio Limits-specific Qt environment on Device Selector.
-        Process.Start(new ProcessStartInfo
+        // Returning the process lets Audio Limits refresh its device state as soon as
+        // the user closes Device Selector.
+        return Process.Start(new ProcessStartInfo
         {
             FileName = path,
             WorkingDirectory = installDir,
             UseShellExecute = true
-        });
+        }) ?? throw new InvalidOperationException(
+            "Windows did not start Equalizer APO's Device Selector.");
     }
 
     public void OpenDownloadPage() =>

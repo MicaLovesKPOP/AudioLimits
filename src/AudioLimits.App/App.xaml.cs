@@ -21,7 +21,7 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        AppLog.Info("Audio Limits 1.0.0-rc.2 starting");
+        AppLog.Info("Audio Limits 1.0.0 starting");
 
         _singleInstance = new SingleInstanceCoordinator();
         if (!_singleInstance.IsPrimary)

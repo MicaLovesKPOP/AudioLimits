@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0
+
+- Promote the validated release candidate to the first stable Audio Limits release.
+- Automatically acquire, verify, and install missing runtime prerequisites and Equalizer APO from their intended official sources while keeping playback-device selection explicit.
+- Show native prerequisite preparation progress with safe cancellation; downloads can stop immediately, while an installer already in progress is allowed to finish before setup exits.
+- Use a single-download prerequisite pipeline that overlaps downloading/verifying with installation instead of competing parallel downloads.
+- Keep routine installed launches direct to `app\AudioLimits.App.exe`, with the root `AudioLimits.exe` retained as the extract-and-run first-launch/recovery entry point.
+- Keep the public binary choices intentionally limited to `AudioLimits-Setup.exe` and `AudioLimits-1.0.0-x64.zip`.
+- Preserve the limiter/Core behavior; the final build gate remains the 50-test regression suite plus Windows runtime validation.
 ## 1.0.0-rc.2
 
 - Promote the validated WinUI codebase to a GitHub-ready release candidate without changing limiter/audio behavior.

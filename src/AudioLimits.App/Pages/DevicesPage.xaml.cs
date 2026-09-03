@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using AudioLimits.App.Services;
 using AudioLimits.App.ViewModels;
 using AudioLimits.Core.Services;
 using Microsoft.UI.Xaml;
@@ -30,8 +31,8 @@ public sealed partial class DevicesPage : Page
         try
         {
             await App.Services.EnsureInitializedAsync();
-            ConfigureStateInfo();
             await RefreshDevicesAsync();
+            ConfigureStateInfo();
 
             var notice = App.Services.Limits.TakeOperationNotice();
             if (!string.IsNullOrWhiteSpace(notice))
@@ -107,12 +108,21 @@ public sealed partial class DevicesPage : Page
         {
             StateInfoBar.Severity = InfoBarSeverity.Warning;
             StateInfoBar.Title = "Equalizer APO is required";
-            StateInfoBar.Message = "Install Equalizer APO before setting, changing, or removing limits, then reopen Audio Limits.";
-            StateInfoBar.ActionButton = CreateSetupButton("Get Equalizer APO…");
+            StateInfoBar.Message = "Audio Limits uses Equalizer APO to apply volume limits. Install it to continue.";
+            StateInfoBar.ActionButton = CreateInstallApoButton();
             StateInfoBar.IsOpen = true;
             return;
         }
 
+        if (Devices.Count > 0 && Devices.All(x => !x.ApoReady))
+        {
+            StateInfoBar.Severity = InfoBarSeverity.Warning;
+            StateInfoBar.Title = "Audio setup required";
+            StateInfoBar.Message = "Equalizer APO is installed. Choose the playback devices you want Audio Limits to control.";
+            StateInfoBar.ActionButton = CreateSetupButton("Set up playback devices…");
+            StateInfoBar.IsOpen = true;
+            return;
+        }
         if (load.Status == SettingsLoadStatus.RecoveredFromBackup && !string.IsNullOrWhiteSpace(load.Message))
         {
             StateInfoBar.Severity = InfoBarSeverity.Informational;
@@ -130,6 +140,12 @@ public sealed partial class DevicesPage : Page
         return button;
     }
 
+    private Button CreateInstallApoButton()
+    {
+        var button = new Button { Content = "Install Equalizer APO…" };
+        button.Click += async (_, _) => await InstallEqualizerApoAsync();
+        return button;
+    }
     private DeviceViewModel? FindDeviceFromButton(object sender)
     {
         if (sender is not Button { Tag: string id })
@@ -199,18 +215,44 @@ public sealed partial class DevicesPage : Page
 
     private async Task<int?> ShowLimitDialogAsync(DeviceViewModel device, int initialPercent)
     {
-        var numberBox = new NumberBox
+        var valueText = new TextBlock
         {
-            Header = "Output limit (%)",
+            Text = Math.Clamp(initialPercent, 1, 100).ToString(),
+            MinWidth = 28,
+            TextAlignment = TextAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var slider = new Slider
+        {
             Minimum = 1,
             Maximum = 100,
-            SmallChange = 1,
             Value = Math.Clamp(initialPercent, 1, 100),
-            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Hidden,
-            Width = 150,
-            HorizontalAlignment = HorizontalAlignment.Left
+            StepFrequency = 1,
+            SmallChange = 1,
+            LargeChange = 10,
+            IsThumbToolTipEnabled = true,
+            MinWidth = 280,
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
-        AutomationProperties.SetName(numberBox, $"Output limit percentage for {device.DisplayName}");
+        AutomationProperties.SetName(
+            slider,
+            $"Output limit percentage for {device.DisplayName}");
+
+        var sliderRow = new Grid
+        {
+            ColumnSpacing = 10,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        sliderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        sliderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        sliderRow.Children.Add(valueText);
+        Grid.SetColumn(slider, 1);
+        sliderRow.Children.Add(slider);
+
+        var limitInput = new StackPanel { Spacing = 4 };
+        limitInput.Children.Add(new TextBlock { Text = "Output limit (%)" });
+        limitInput.Children.Add(sliderRow);
 
         var explanation = new TextBlock
         {
@@ -228,7 +270,7 @@ public sealed partial class DevicesPage : Page
             Text = device.DisplayName,
             Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"]
         });
-        content.Children.Add(numberBox);
+        content.Children.Add(limitInput);
         content.Children.Add(explanation);
         content.Children.Add(transitionNote);
 
@@ -244,21 +286,12 @@ public sealed partial class DevicesPage : Page
 
         void UpdateDialogState()
         {
-            if (double.IsNaN(numberBox.Value) ||
-                numberBox.Value < 1 ||
-                numberBox.Value > 100 ||
-                Math.Abs(numberBox.Value - Math.Round(numberBox.Value)) > 0.0001)
-            {
-                dialog.IsPrimaryButtonEnabled = false;
-                explanation.Text = "Enter a whole percentage from 1 to 100.";
-                transitionNote.Text = string.Empty;
-                return;
-            }
-
             var percent = Math.Clamp(
-                (int)Math.Round(numberBox.Value, MidpointRounding.AwayFromZero),
+                (int)Math.Round(slider.Value, MidpointRounding.AwayFromZero),
                 1,
                 100);
+            valueText.Text = percent.ToString();
+
             var removing = percent == 100;
             var unchanged = device.HasLimit && device.LimitPercent == percent;
 
@@ -293,12 +326,12 @@ public sealed partial class DevicesPage : Page
                 else if (device.LimitPercent is { } currentLimit && percent > currentLimit)
                 {
                     transitionNote.Text =
-                        "Raising the limit may make the current output louder. Lower Windows volume first if needed. Audio may briefly mute while the change is applied.";
+                        "Changing the limit may change the current loudness. Audio may briefly mute while the change is applied.";
                 }
                 else if (device.LimitPercent is { } currentLimit2 && percent < currentLimit2)
                 {
                     transitionNote.Text =
-                        "Lowering the limit may make the current output quieter. Audio may briefly mute while the change is applied.";
+                        "Changing the limit may change the current loudness. Audio may briefly mute while the change is applied.";
                 }
                 else
                 {
@@ -315,20 +348,32 @@ public sealed partial class DevicesPage : Page
             }
         }
 
-        numberBox.ValueChanged += (_, _) => UpdateDialogState();
+        slider.ValueChanged += (_, _) => UpdateDialogState();
+        slider.PointerWheelChanged += (_, e) =>
+        {
+            var delta = e.GetCurrentPoint(slider).Properties.MouseWheelDelta;
+            if (delta == 0)
+                return;
+
+            var current = Math.Round(slider.Value, MidpointRounding.AwayFromZero);
+            slider.Value = Math.Clamp(
+                current + (delta > 0 ? 1 : -1),
+                slider.Minimum,
+                slider.Maximum);
+            e.Handled = true;
+        };
+
         UpdateDialogState();
 
         var result = await dialog.ShowAsync();
-        if (result != ContentDialogResult.Primary || double.IsNaN(numberBox.Value))
+        if (result != ContentDialogResult.Primary)
             return null;
 
         return Math.Clamp(
-            (int)Math.Round(numberBox.Value, MidpointRounding.AwayFromZero),
+            (int)Math.Round(slider.Value, MidpointRounding.AwayFromZero),
             1,
             100);
-    }
-
-    private async Task<bool> ConfirmHardwareLimitRemovalAsync(DeviceViewModel device)
+    }    private async Task<bool> ConfirmHardwareLimitRemovalAsync(DeviceViewModel device)
     {
         var content = new StackPanel { Spacing = 10, MaxWidth = 440 };
         content.Children.Add(new TextBlock
@@ -375,7 +420,29 @@ public sealed partial class DevicesPage : Page
             return false;
         }
 
-        if (apo.IsInstalled && device.ApoReady)
+        if (!apo.IsInstalled)
+        {
+            var installDialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "Equalizer APO is required",
+                Content = new TextBlock
+                {
+                    Text = "Audio Limits uses Equalizer APO to apply volume limits. Install it now?",
+                    TextWrapping = TextWrapping.Wrap
+                },
+                PrimaryButtonText = "Install Equalizer APO",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary
+            };
+
+            if (await installDialog.ShowAsync() == ContentDialogResult.Primary)
+                await InstallEqualizerApoAsync();
+
+            return false;
+        }
+
+        if (device.ApoReady)
             return true;
 
         var selectorAvailable = apo.DeviceSelectorPath is not null;
@@ -385,27 +452,28 @@ public sealed partial class DevicesPage : Page
             Title = "Audio setup required",
             Content = new TextBlock
             {
-                Text = !apo.IsInstalled
-                    ? "Audio Limits needs Equalizer APO before it can apply limits. Open the official download page now?"
-                    : selectorAvailable
-                        ? "This playback device needs to be enabled for Audio Limits before it can be limited. Open Manage devices now?"
-                        : "This playback device needs audio setup, but Equalizer APO's Device Selector couldn't be found. Open the download page so you can repair or reinstall Equalizer APO?",
+                Text = selectorAvailable
+                    ? "This playback device isn't enabled for Audio Limits yet. Open Equalizer APO's Device Selector now?"
+                    : "Equalizer APO is installed, but its Device Selector couldn't be found. Repair Equalizer APO now?",
                 TextWrapping = TextWrapping.Wrap
             },
-            PrimaryButtonText = apo.IsInstalled && selectorAvailable
-                ? "Manage devices"
-                : "Get Equalizer APO",
+            PrimaryButtonText = selectorAvailable
+                ? "Set up playback devices"
+                : "Repair Equalizer APO",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary
         };
 
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-            await OpenAudioSetupAsync();
+        {
+            if (selectorAvailable)
+                await OpenAudioSetupAsync();
+            else
+                await InstallEqualizerApoAsync();
+        }
 
         return false;
-    }
-
-    private async Task RunLimitOperationAsync(
+    }    private async Task RunLimitOperationAsync(
         DeviceViewModel target,
         string operationStatus,
         Func<Task> operation)
@@ -463,26 +531,86 @@ public sealed partial class DevicesPage : Page
             device.SetGlobalActionsEnabled(enabled);
     }
 
+    private async Task InstallEqualizerApoAsync()
+    {
+        if (_operationInProgress)
+            return;
+
+        _operationInProgress = true;
+        SetAllActionsEnabled(false);
+
+        try
+        {
+            StateInfoBar.ActionButton = null;
+            StateInfoBar.Severity = InfoBarSeverity.Informational;
+            StateInfoBar.Title = "Preparing Equalizer APO";
+            StateInfoBar.Message = "Audio Limits will show setup progress in a separate window.";
+            StateInfoBar.IsClosable = false;
+            StateInfoBar.IsOpen = true;
+
+            var exitCode = await DependencySetupService.InstallOrRepairEqualizerApoAsync();
+
+            if (exitCode == 3)
+            {
+                await RefreshDevicesAsync();
+                ConfigureStateInfo();
+                return;
+            }
+
+            if (exitCode != 0)
+            {
+                ShowOperationError(
+                    "Equalizer APO setup didn't finish",
+                    "Audio Limits couldn't complete Equalizer APO setup. The preparation window may contain more details.");
+                return;
+            }
+
+            if (!App.Services.EqualizerApo.IsInstalled)
+            {
+                ShowOperationError(
+                    "Equalizer APO wasn't detected",
+                    "Setup finished, but Audio Limits still can't find Equalizer APO. Restart Windows and try again.");
+                return;
+            }
+
+            await RefreshDevicesAsync();
+            ConfigureStateInfo();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Could not install or repair Equalizer APO", ex);
+            ShowOperationError("Equalizer APO setup couldn't start", ex.Message);
+        }
+        finally
+        {
+            _operationInProgress = false;
+            SetAllActionsEnabled(true);
+        }
+    }
+
     private async Task OpenAudioSetupAsync()
     {
         try
         {
             var apo = App.Services.EqualizerApo;
-            if (apo.DeviceSelectorPath is not null)
-                apo.OpenDeviceSelector();
-            else
-                apo.OpenDownloadPage();
+            if (apo.DeviceSelectorPath is null)
+            {
+                await InstallEqualizerApoAsync();
+                return;
+            }
+
+            using var selector = apo.OpenDeviceSelector();
+            await selector.WaitForExitAsync();
+
+            await RefreshDevicesAsync();
+            ConfigureStateInfo();
         }
         catch (Exception ex)
         {
             AppLog.Error("Could not open audio setup", ex);
             ShowOperationError("Audio setup couldn't be opened", ex.Message);
         }
-
-        await Task.CompletedTask;
-    }
-
-    private void ShowOperationInfo(string title, string message)
+    }    private void ShowOperationInfo(string title, string message)
     {
         StateInfoBar.ActionButton = null;
         StateInfoBar.Severity = InfoBarSeverity.Informational;

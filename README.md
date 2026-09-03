@@ -1,4 +1,4 @@
-# Audio Limits [![Download](https://img.shields.io/badge/Download-Pre--release-orange)](https://github.com/MicaLovesKPOP/AudioLimits/releases/tag/v1.0.0-rc.2)
+# Audio Limits [![Download](https://img.shields.io/badge/Download-Latest_Release-brightgreen)](https://github.com/MicaLovesKPOP/AudioLimits/releases/latest)
 
 Audio Limits is a small Windows utility for setting a quieter maximum for each playback device while leaving the normal Windows volume slider at 0–100%.
 
@@ -6,7 +6,7 @@ It uses [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) as the p
 
 ![Audio Limits devices screen](docs/images/audio-limits.png)
 
-> **Release status:** `1.0.0-rc.2` is a release candidate. The normal installed path and the extract-and-run path have been tested on real Windows hardware. The launcher's automatic prerequisite recovery on a genuinely clean PC is implemented but still awaiting a clean-VM validation.
+> **Release status:** `1.0.0` is the first stable Audio Limits release.
 
 ## Download
 
@@ -19,29 +19,28 @@ Normal Windows installation.
 - choose **Just for me** or **Anyone who uses this computer**;
 - supports update and repair when Setup is run again;
 - creates the normal Start-menu / Installed Apps integration;
-- downloads and installs only missing Microsoft runtime prerequisites;
+- prepares missing prerequisites on first setup;
 - uninstalls through **Windows Settings → Apps → Installed apps**.
 
-### `AudioLimits-1.0.0-rc.2-x64.zip` — no installation
+### `AudioLimits-1.0.0-x64.zip` — no installation
 
 For people who prefer extract-and-run software.
 
 1. Extract the complete **Audio Limits** folder.
 2. Run the root `AudioLimits.exe`.
 
-The root of the extracted folder intentionally contains only the user-facing launcher; implementation/runtime files live under `app\`.
+The root of the extracted folder intentionally contains only the user-facing prerequisite/recovery launcher; implementation/runtime files live under `app\`.
 
-This ZIP is **not described as portable**. Audio Limits still stores settings in the normal per-user Windows location and can create a normal Start-with-Windows entry if you enable it. Copying the whole folder to another x64 Windows PC is supported; the launcher can offer to acquire missing Microsoft prerequisites before starting the internal WinUI app.
+This ZIP is **not described as portable**. Audio Limits still stores settings in the normal per-user Windows location and can create a normal Start-with-Windows entry if you enable it. Copying the whole folder to another x64 Windows PC is supported.
 
 ## Requirements
 
 - Windows 10 version 2004 / build 19041 or newer; Windows 11 is the primary visual target.
 - x64-compatible Windows.
-- Equalizer APO for persistent audio attenuation.
 
-Audio Limits uses the .NET 8 Desktop Runtime, the Microsoft Visual C++ x64 runtime, and Windows App Runtime 2.3.1. Users normally do **not** need to install these manually: Setup checks them, and the root launcher can also offer recovery when a copied/extracted folder is missing one.
+Audio Limits uses the .NET 8 Desktop Runtime, the Microsoft Visual C++ x64 runtime, Windows App Runtime 2.3.1, and Equalizer APO. Users normally do **not** need to install these manually: the setup/recovery flow detects what is missing, downloads it from the intended official source, verifies the downloaded installer, and installs only what is needed.
 
-Equalizer APO is different: device selection requires user interaction, so Audio Limits never installs/configures it silently. The app detects when Equalizer APO is missing or a playback device is not enabled and guides the user from there.
+Equalizer APO playback-device selection remains an explicit user step. After Equalizer APO is installed, Audio Limits guides you to choose the playback devices it should control.
 
 ## What it does
 
@@ -89,11 +88,11 @@ The `release\` directory is intentionally clean and contains only the two user-f
 
 - `src/AudioLimits.Core` — limiter, persistence, Equalizer APO and audio-device logic.
 - `src/AudioLimits.App` — WinUI 3 application.
-- `src/AudioLimits.Launcher` — self-contained prerequisite launcher.
+- `src/AudioLimits.Launcher` — self-contained prerequisite/recovery launcher.
 - `tests/AudioLimits.Core.Tests` — regression tests for the preserved Core behavior.
 - `installer/AudioLimits.iss` — Inno Setup installer.
 - `docs/` — design/verification history and release validation notes.
 
-## Current release-candidate caveat
+## Release validation
 
-The real-machine tests have covered normal Setup/update/repair, runtime operation, tray behavior, relocation of the complete application folder, and the healthy prerequisite path. The remaining deferred release test is a clean Windows VM with one or more Microsoft prerequisites missing, to exercise the launcher's download/install/restart/error paths end-to-end.
+The stable release keeps the validated limiter/Core behavior and has been exercised across normal Setup/update/repair, tray/lifecycle behavior, extract-and-run relocation, prerequisite bootstrap on a clean Windows Sandbox, automatic Equalizer APO installation, and the explicit Equalizer APO Device Selector handoff. Windows Sandbox's remote-audio environment does not expose a normal playback endpoint to Equalizer APO, so real-device endpoint selection remains a real-PC behavior rather than a Sandbox test.

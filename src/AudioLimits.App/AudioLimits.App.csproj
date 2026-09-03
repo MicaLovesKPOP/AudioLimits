@@ -21,7 +21,7 @@
     <PublishSingleFile>false</PublishSingleFile>
     <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
     <PublishTrimmed>false</PublishTrimmed>
-    <Version>1.0.0-rc.2</Version>
+    <Version>1.0.0</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
     <RepositoryUrl>https://github.com/MicaLovesKPOP/AudioLimits</RepositoryUrl>

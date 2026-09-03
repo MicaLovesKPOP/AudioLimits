@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using AudioLimits.App.Services;
 using AudioLimits.Core.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -44,19 +45,19 @@ public sealed partial class SettingsPage : Page
         {
             AudioProcessingCard.Header = "Equalizer APO";
             AudioProcessingCard.Description =
-                "Required before Audio Limits can set, change, or remove limits. Install it, then reopen Audio Limits.";
+                "Audio Limits uses Equalizer APO to apply volume limits. Install it to continue.";
             AudioProcessingStatusText.Text = "Not installed";
             AudioProcessingStatusText.Visibility = Visibility.Visible;
-            ManageAudioButton.Content = "Get Equalizer APO…";
+            ManageAudioButton.Content = "Install Equalizer APO…";
         }
         else if (apo.DeviceSelectorPath is null)
         {
             AudioProcessingCard.Header = "Equalizer APO";
             AudioProcessingCard.Description =
-                "Installed, but its Device Selector couldn't be found. Repair or reinstall Equalizer APO to manage playback devices.";
+                "Installed, but its Device Selector couldn't be found. Repair Equalizer APO to manage playback devices.";
             AudioProcessingStatusText.Text = "Needs repair";
             AudioProcessingStatusText.Visibility = Visibility.Visible;
-            ManageAudioButton.Content = "Get Equalizer APO…";
+            ManageAudioButton.Content = "Repair Equalizer APO…";
         }
         else
         {
@@ -72,7 +73,7 @@ public sealed partial class SettingsPage : Page
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion;
         VersionText.Text = string.IsNullOrWhiteSpace(informationalVersion)
-            ? "1.0.0-rc.2"
+            ? "1.0.0"
             : informationalVersion.Split('+')[0];
     }
 
@@ -95,15 +96,29 @@ public sealed partial class SettingsPage : Page
         }
     }
 
-    private void ManageAudioButton_Click(object sender, RoutedEventArgs e)
+    private async void ManageAudioButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
             var apo = App.Services.EqualizerApo;
             if (apo.DeviceSelectorPath is not null)
-                apo.OpenDeviceSelector();
+            {
+                using var selector = apo.OpenDeviceSelector();
+                await selector.WaitForExitAsync();
+            }
             else
-                apo.OpenDownloadPage();
+            {
+                var exitCode = await DependencySetupService.InstallOrRepairEqualizerApoAsync();
+                if (exitCode is not 0 and not 3)
+                {
+                    ShowError(
+                        "Equalizer APO setup didn't finish",
+                        "Audio Limits couldn't complete Equalizer APO setup. The preparation window may contain more details.");
+                    return;
+                }
+            }
+
+            RefreshSettings();
         }
         catch (Exception ex)
         {
@@ -111,7 +126,6 @@ public sealed partial class SettingsPage : Page
             ShowError("Audio setup couldn't be opened", ex.Message);
         }
     }
-
     private void OpenGitHubButton_Click(object sender, RoutedEventArgs e)
     {
         try

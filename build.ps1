@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
-$version = "1.0.0-rc.2"
+$version = "1.0.0"
 $appProject = ".\src\AudioLimits.App\AudioLimits.App.csproj"
 $launcherProject = ".\src\AudioLimits.Launcher\AudioLimits.Launcher.csproj"
 $testProject = ".\tests\AudioLimits.Core.Tests\AudioLimits.Core.Tests.csproj"
@@ -161,7 +161,7 @@ function Copy-DirectoryContents([string]$Source, [string]$Destination) {
     }
 }
 
-Write-Host "Audio Limits $version GitHub release-candidate build"
+Write-Host "Audio Limits $version GitHub release build"
 Write-Host ""
 Write-Host "This build creates exactly two user-facing release assets:"
 Write-Host "  1) AudioLimits-Setup.exe (recommended normal installation)"
@@ -280,7 +280,7 @@ $zipHash = (Get-FileHash $zipPath -Algorithm SHA256).Hash
 $launcherHash = (Get-FileHash $launcherExe -Algorithm SHA256).Hash
 
 $report = @(
-    "Audio Limits $version release candidate",
+    "Audio Limits $version release",
     "Generated: $([DateTime]::Now.ToString('yyyy-MM-dd HH:mm:ss'))",
     "",
     "User-facing GitHub release assets",
@@ -321,8 +321,8 @@ $report = @(
     "- The ZIP is intentionally not called portable; settings remain in the normal per-user Audio Limits settings location and Start with Windows can still create normal user integration.",
     "- Root AudioLimits.exe checks .NET 8 Desktop Runtime x64, Visual C++ v14 x64 (14.50+), and Windows App Runtime 2.3.1 and can offer to acquire missing components from Microsoft.",
     "- Setup-created shortcuts/post-install launch and Start with Windows target app\AudioLimits.App.exe directly after prerequisites are prepared; root AudioLimits.exe remains the manual first-run/recovery entry.",
-    "- The healthy-machine and relocated-folder launcher paths have been real-Windows tested. Clean-machine missing-prerequisite recovery is deliberately still marked unverified until a VM test is performed.",
-    "- Equalizer APO remains an app-level interactive dependency because playback-device selection requires user interaction."
+    "- Healthy-machine, relocated-folder, and clean-machine prerequisite bootstrap paths have been tested.",
+    "- Equalizer APO is acquired by the prerequisite bootstrap when missing; playback-device selection remains an explicit user step."
 )
 Set-Content -LiteralPath $reportPath -Value $report -Encoding UTF8
 
