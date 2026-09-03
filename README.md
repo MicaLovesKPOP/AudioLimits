@@ -6,15 +6,13 @@ It uses [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) as the p
 
 ![Audio Limits devices screen](docs/images/audio-limits.png)
 
-> **Release status:** `1.0.0` is the first stable Audio Limits release.
-
 ## Download
 
-GitHub releases contain exactly two binary choices:
+Choose one of two downloads:
 
 ### `AudioLimits-Setup.exe` — recommended
 
-Normal Windows installation.
+Recommended for most users.
 
 - choose **Just for me** or **Anyone who uses this computer**;
 - supports update and repair when Setup is run again;
@@ -27,18 +25,18 @@ Normal Windows installation.
 For people who prefer extract-and-run software.
 
 1. Extract the complete **Audio Limits** folder.
-2. Run the root `AudioLimits.exe`.
+2. Run `AudioLimits.exe` from the extracted folder.
 
-The root of the extracted folder intentionally contains only the user-facing prerequisite/recovery launcher; implementation/runtime files live under `app\`.
+Supporting application files are kept under `app\`.
 
-This ZIP is **not described as portable**. Audio Limits still stores settings in the normal per-user Windows location and can create a normal Start-with-Windows entry if you enable it. Copying the whole folder to another x64 Windows PC is supported.
+The ZIP is extract-and-run, but not fully portable: settings are stored in your normal Windows user profile, and enabling Start with Windows creates normal Windows integration. Copying the whole folder to another x64 Windows PC is supported.
 
 ## Requirements
 
-- Windows 10 version 2004 / build 19041 or newer; Windows 11 is the primary visual target.
-- x64-compatible Windows.
+- Windows 10 version 2004 (build 19041) or newer.
+- x64 Windows.
 
-Audio Limits uses the .NET 8 Desktop Runtime, the Microsoft Visual C++ x64 runtime, Windows App Runtime 2.3.1, and Equalizer APO. Users normally do **not** need to install these manually: the setup/recovery flow detects what is missing, downloads it from the intended official source, verifies the downloaded installer, and installs only what is needed.
+Audio Limits uses the .NET 8 Desktop Runtime, the Microsoft Visual C++ x64 runtime, Windows App Runtime 2.3.1, and Equalizer APO. Users normally do **not** need to install these manually: the setup/recovery flow detects what is missing, downloads it from its official source, verifies the downloaded installer, and installs only what is needed.
 
 Equalizer APO playback-device selection remains an explicit user step. After Equalizer APO is installed, Audio Limits guides you to choose the playback devices it should control.
 
@@ -76,23 +74,19 @@ The build:
 
 1. closes any running Audio Limits processes;
 2. restores the solution;
-3. runs the preserved Core tests;
-4. builds the WinUI app and bootstrap launcher;
-5. creates the canonical `Audio Limits\AudioLimits.exe + app\` folder;
+3. runs the test suite;
+4. builds the WinUI app and prerequisite launcher;
+5. assembles the application folder;
 6. builds the normal Setup;
 7. builds the no-install x64 ZIP.
 
-The `release\` directory is intentionally clean and contains only the two user-facing release assets. Intermediate output and `RELEASE_REPORT.txt` go under `artifacts\`. `publish\` is a convenient unzipped copy of the canonical application folder for local testing.
+The `release\` directory contains the two distributable files. Intermediate build output and `RELEASE_REPORT.txt` are stored under `artifacts\`. `publish\` contains an unzipped copy of the application folder for local testing.
 
 ## Repository structure
 
 - `src/AudioLimits.Core` — limiter, persistence, Equalizer APO and audio-device logic.
 - `src/AudioLimits.App` — WinUI 3 application.
 - `src/AudioLimits.Launcher` — self-contained prerequisite/recovery launcher.
-- `tests/AudioLimits.Core.Tests` — regression tests for the preserved Core behavior.
+- `tests/AudioLimits.Core.Tests` — regression tests for the limiter and settings behavior.
 - `installer/AudioLimits.iss` — Inno Setup installer.
-- `docs/` — design/verification history and release validation notes.
-
-## Release validation
-
-The stable release keeps the validated limiter/Core behavior and has been exercised across normal Setup/update/repair, tray/lifecycle behavior, extract-and-run relocation, prerequisite bootstrap on a clean Windows Sandbox, automatic Equalizer APO installation, and the explicit Equalizer APO Device Selector handoff. Windows Sandbox's remote-audio environment does not expose a normal playback endpoint to Equalizer APO, so real-device endpoint selection remains a real-PC behavior rather than a Sandbox test.
+- `docs/` — design and verification documentation.
