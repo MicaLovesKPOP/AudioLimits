@@ -50,7 +50,7 @@
                         <TextBlock Text="No playback devices"
                                    HorizontalAlignment="Center"
                                    Style="{StaticResource SubtitleTextBlockStyle}" />
-                        <TextBlock Text="Connect or enable a Windows playback device, then reopen Audio Limits."
+                        <TextBlock Text="Connect or enable a Windows playback device. This list updates automatically."
                                    MaxWidth="440"
                                    TextAlignment="Center"
                                    TextWrapping="Wrap"

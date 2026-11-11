@@ -15,6 +15,7 @@ public sealed partial class MainWindow : Window
     private bool _closeBlockedDialogOpen;
     private bool _hiddenToTray;
     private bool _exitCleanupStarted;
+    private bool _exitRequested;
     private OverlappedPresenterState _lastVisiblePresenterState = OverlappedPresenterState.Restored;
     private TrayIconService? _trayIcon;
     private TrayMenuWindow? _trayMenu;
@@ -105,6 +106,9 @@ public sealed partial class MainWindow : Window
     {
         if (CanExitSafely())
         {
+            // Closing the window hides it to the tray; the explicit tray Exit
+            // action is the only normal route that terminates the application.
+            _exitRequested = true;
             Close();
             return;
         }
@@ -177,23 +181,25 @@ public sealed partial class MainWindow : Window
         if (!args.DidPresenterChange || sender.Presenter is not OverlappedPresenter presenter)
             return;
 
-        if (presenter.State == OverlappedPresenterState.Minimized)
-        {
-            if (_trayIcon is not null && !_hiddenToTray)
-            {
-                _hiddenToTray = true;
-                sender.Hide();
-            }
-
-            return;
-        }
-
         if (presenter.State is OverlappedPresenterState.Restored or OverlappedPresenterState.Maximized)
             _lastVisiblePresenterState = presenter.State;
     }
 
     private void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
     {
+        if (!_exitRequested && _trayIcon is not null)
+        {
+            // The title-bar X is "close to tray". The minimize button remains
+            // a normal Windows minimize, leaving the application on the taskbar.
+            // Hiding does not interrupt an in-progress audio operation.
+            args.Cancel = true;
+            _hiddenToTray = true;
+            sender.Hide();
+            return;
+        }
+
+        // With no tray, close normally rather than leaving an invisible process.
+        // Explicit Exit from the tray follows this same safe-shutdown path.
         if (CanExitSafely())
         {
             PrepareForExit();

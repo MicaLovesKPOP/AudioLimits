@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased (post-1.0.0)
+
+- Change the normal window controls: minimize remains on the taskbar, X hides to the tray, and explicit tray Exit quits safely.
+- Refresh the active playback-device list and Equalizer APO registration while the Devices page is open, detecting changes made in Device Selector or after USB endpoint re-enumeration without restarting Audio Limits.
+- This does not yet automatically install Equalizer APO on newly created playback endpoints or migrate limits between endpoint IDs; those require a separate safeguarded implementation and on-device verification.
+
 ## 1.0.0
 
 - Promote the validated release candidate to the first stable Audio Limits release.

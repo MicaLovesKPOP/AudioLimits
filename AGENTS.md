@@ -8,7 +8,7 @@
 
 - Preserve the limiter/Equalizer APO/Core behavior and its existing tests.
 - Preserve the WinUI Devices/Settings design and hardware-volume fallback wording.
-- Preserve title-bar layout, tray lifecycle/menu behavior, single-instance activation and Start-with-Windows semantics.
+- Preserve title-bar layout, single-instance activation and Start-with-Windows semantics. The owner reported a tray-lifecycle usability regression on 2026-11-11: normal minimize must go to the taskbar; title-bar X must hide to tray; tray Exit must actually quit. Treat this as an explicit correction to the prior frozen behavior, not a reason to change unrelated audio logic.
 - Preserve Setup fresh/update/repair behavior and prerequisite policy.
 
 ## Canonical app layout

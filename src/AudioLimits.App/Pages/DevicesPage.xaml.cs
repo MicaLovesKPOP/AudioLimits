@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using AudioLimits.App.Services;
 using AudioLimits.App.ViewModels;
+using AudioLimits.Core.Models;
 using AudioLimits.Core.Services;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -12,6 +14,11 @@ public sealed partial class DevicesPage : Page
 {
     private bool _loadedOnce;
     private bool _operationInProgress;
+    private bool _deviceMonitorChecking;
+    private string _deviceStateSignature = string.Empty;
+    private DispatcherQueueTimer? _deviceMonitor;
+
+    private sealed record DeviceListSnapshot(IReadOnlyList<AudioDeviceInfo> Devices, string Signature);
 
     public DevicesPage()
     {
@@ -31,8 +38,13 @@ public sealed partial class DevicesPage : Page
         try
         {
             await App.Services.EnsureInitializedAsync();
+            if (!_loadedOnce)
+                return;
             await RefreshDevicesAsync();
+            if (!_loadedOnce)
+                return;
             ConfigureStateInfo();
+            StartDeviceMonitor();
 
             var notice = App.Services.Limits.TakeOperationNotice();
             if (!string.IsNullOrWhiteSpace(notice))
@@ -50,25 +62,93 @@ public sealed partial class DevicesPage : Page
         }
     }
 
+    private static DeviceListSnapshot ReadDeviceListSnapshot()
+    {
+        var services = App.Services;
+        var deviceInfos = services.AudioDevices.GetActiveRenderDevices();
+
+        // Include both Windows endpoint identity and Equalizer APO registration.
+        // An external Device Selector edit or a USB device reconnect can change
+        // these while Audio Limits is already running.
+        var signature = $"APO installed: {services.EqualizerApo.IsInstalled}\n" +
+            string.Join("\n", deviceInfos.Select(info =>
+                $"{info.Id}|{info.FriendlyName}|{services.EqualizerApo.GetPreferredProcessingStage(info.EndpointGuid)}"));
+        return new DeviceListSnapshot(deviceInfos, signature);
+    }
+
     private async Task RefreshDevicesAsync()
+    {
+        var snapshot = await Task.Run(ReadDeviceListSnapshot);
+        if (_loadedOnce)
+            ShowDeviceSnapshot(snapshot);
+    }
+
+    private void ShowDeviceSnapshot(DeviceListSnapshot snapshot)
     {
         ClearDevices();
 
         var services = App.Services;
-        var deviceInfos = await Task.Run(services.AudioDevices.GetActiveRenderDevices);
-        foreach (var info in deviceInfos)
+        foreach (var info in snapshot.Devices)
         {
-            Devices.Add(new DeviceViewModel(
-                info,
-                services.Limits,
-                services.AudioDevices,
-                services.EqualizerApo,
-                DispatcherQueue));
+            try
+            {
+                Devices.Add(new DeviceViewModel(
+                    info,
+                    services.Limits,
+                    services.AudioDevices,
+                    services.EqualizerApo,
+                    DispatcherQueue));
+            }
+            catch (Exception ex)
+            {
+                // An endpoint can vanish between the enumeration and volume
+                // subscription, especially during a USB unplug/replug.
+                AppLog.Error($"Could not attach to playback device '{info.FriendlyName}'", ex);
+            }
         }
 
+        _deviceStateSignature = snapshot.Signature;
         LoadingPanel.Visibility = Visibility.Collapsed;
         DeviceRepeater.Visibility = Devices.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         EmptyStatePanel.Visibility = Devices.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void StartDeviceMonitor()
+    {
+        if (_deviceMonitor is not null)
+            return;
+
+        _deviceMonitor = DispatcherQueue.CreateTimer();
+        _deviceMonitor.Interval = TimeSpan.FromSeconds(3);
+        _deviceMonitor.IsRepeating = true;
+        _deviceMonitor.Tick += DeviceMonitor_Tick;
+        _deviceMonitor.Start();
+    }
+
+    private async void DeviceMonitor_Tick(DispatcherQueueTimer sender, object args)
+    {
+        if (_deviceMonitorChecking || _operationInProgress || App.Services.Limits.IsBusy)
+            return;
+
+        _deviceMonitorChecking = true;
+        try
+        {
+            var snapshot = await Task.Run(ReadDeviceListSnapshot);
+            if (!_loadedOnce || _operationInProgress || App.Services.Limits.IsBusy ||
+                string.Equals(snapshot.Signature, _deviceStateSignature, StringComparison.Ordinal))
+                return;
+
+            ShowDeviceSnapshot(snapshot);
+            ConfigureStateInfo();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Could not refresh playback device registration", ex);
+        }
+        finally
+        {
+            _deviceMonitorChecking = false;
+        }
     }
 
     private void ConfigureStateInfo()
@@ -639,7 +719,13 @@ public sealed partial class DevicesPage : Page
 
     private void DevicesPage_Unloaded(object sender, RoutedEventArgs e)
     {
-        ClearDevices();
         _loadedOnce = false;
+        if (_deviceMonitor is not null)
+        {
+            _deviceMonitor.Stop();
+            _deviceMonitor.Tick -= DeviceMonitor_Tick;
+            _deviceMonitor = null;
+        }
+        ClearDevices();
     }
 }
