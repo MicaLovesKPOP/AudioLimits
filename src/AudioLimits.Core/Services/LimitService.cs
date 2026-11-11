@@ -55,6 +55,7 @@ public sealed class LimitService
         AudioDeviceInfo device, IReadOnlyList<AudioDeviceInfo> activeDevices)
     {
         if (!CanModifyLimits || IsBusy || !_apo.IsInstalled ||
+            ApoEndpointRegistrationTransaction.IsAwaitingAudioRestart(device.EndpointGuid) ||
             !_apo.IsActiveForEndpoint(device.EndpointGuid))
             return false;
 
@@ -75,6 +76,7 @@ public sealed class LimitService
     }
 
     public bool IsLimitActive(DeviceLimit limit) =>
+        !ApoEndpointRegistrationTransaction.IsAwaitingAudioRestart(limit.EndpointGuid) &&
         _apo.IsManagedLimitConfigured(limit);
 
     public async Task RepairOnStartupAsync()
@@ -186,6 +188,8 @@ public sealed class LimitService
 
         foreach (var device in devices)
         {
+            if (ApoEndpointRegistrationTransaction.IsAwaitingAudioRestart(device.EndpointGuid))
+                continue; // Never adjust endpoint volume for a newly registered but not yet loaded APO.
             var currentEntry = managedEntries.FirstOrDefault(x =>
                 string.Equals(
                     x.EndpointGuid,
@@ -466,6 +470,9 @@ public sealed class LimitService
         {
             EnsureNoPendingRecovery();
             EnsureStateAuthoritative();
+            if (ApoEndpointRegistrationTransaction.IsAwaitingAudioRestart(device.EndpointGuid))
+                throw new InvalidOperationException(
+                    "Windows must be restarted after registering audio processing for this device before its limit can be changed.");
 
             var previous = _settings.Find(device.EndpointGuid)?.Clone();
             if (previous is null)
@@ -1113,6 +1120,9 @@ public sealed class LimitService
 
     private void EnsureEndpointStageReady(AudioDeviceInfo device)
     {
+        if (ApoEndpointRegistrationTransaction.IsAwaitingAudioRestart(device.EndpointGuid))
+            throw new InvalidOperationException(
+                "Audio setup was registered for this device, but a Windows restart is still needed before Audio Limits can safely apply a limit.");
         if (!_apo.IsActiveForEndpoint(device.EndpointGuid))
             throw new InvalidOperationException(
                 "Audio setup is not enabled for this playback device. Open Manage audio devices, enable this device, and apply the change first.");

@@ -16,7 +16,9 @@ public enum ApoEndpointSetupStatus
     CleanRegistrationNeeded,
     ExistingDriverEffects,
     UnusualEffectValues,
-    MissingFxProperties
+    MissingFxProperties,
+    AwaitingAudioRestart,
+    SetupRepairRequired
 }
 
 public sealed record ApoFxSlotSnapshot(
@@ -114,10 +116,21 @@ public sealed class ApoEndpointSetupInspector
         var guid = parsed.ToString("B").ToUpperInvariant();
         var snapshot = ReadRegistration(guid);
         var registered = _apo.IsActiveForEndpoint(guid);
+        var pending = ApoEndpointRegistrationTransaction.GetPendingState(guid);
+        if (pending == ApoSetupPendingState.RecoveryRequired)
+            return new ApoEndpointSetupAssessment(
+                ApoEndpointSetupStatus.SetupRepairRequired,
+                snapshot.EffectSlots.Count, true,
+                "An earlier device setup was interrupted or its rollback could not be verified. Do not assume this limit is active. Restore the previous audio registration from the saved backup before trying again.");
+        if (pending == ApoSetupPendingState.RestartRequired)
+            return new ApoEndpointSetupAssessment(
+                ApoEndpointSetupStatus.AwaitingAudioRestart,
+                snapshot.EffectSlots.Count, true,
+                "Equalizer APO registration was changed for this device. Restart Windows before Audio Limits applies a limit. The effect is not yet verified active in the audio engine.");
         return ApoEndpointSetupAssessment.Evaluate(snapshot, registered);
     }
 
-    private static ApoFxRegistrationSnapshot ReadRegistration(string guid)
+    public static ApoFxRegistrationSnapshot ReadRegistration(string guid)
     {
         if (!OperatingSystem.IsWindows())
             return ApoFxRegistrationSnapshot.Unavailable;

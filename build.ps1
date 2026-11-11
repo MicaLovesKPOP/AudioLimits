@@ -4,6 +4,7 @@ Set-Location $PSScriptRoot
 $version = "1.0.0"
 $appProject = ".\src\AudioLimits.App\AudioLimits.App.csproj"
 $launcherProject = ".\src\AudioLimits.Launcher\AudioLimits.Launcher.csproj"
+$endpointSetupProject = ".\src\AudioLimits.EndpointSetup\AudioLimits.EndpointSetup.csproj"
 $testProject = ".\tests\AudioLimits.Core.Tests\AudioLimits.Core.Tests.csproj"
 $installerScript = Join-Path $PSScriptRoot "installer\AudioLimits.iss"
 
@@ -12,6 +13,7 @@ $releaseRoot = Join-Path $PSScriptRoot "release"
 $artifactsRoot = Join-Path $PSScriptRoot "artifacts"
 $appPayload = Join-Path $artifactsRoot "app-payload"
 $launcherPayload = Join-Path $artifactsRoot "launcher"
+$endpointSetupPayload = Join-Path $artifactsRoot "endpoint-setup"
 $distributionRoot = Join-Path $artifactsRoot "distribution"
 $distributionApp = Join-Path $distributionRoot "Audio Limits"
 $zipStage = Join-Path $artifactsRoot "zip-stage"
@@ -197,6 +199,11 @@ dotnet build $launcherProject -c Release --no-restore
 if ($LASTEXITCODE -ne 0) { throw "Launcher build failed." }
 
 Write-Host ""
+Write-Host "Building endpoint-scoped elevated setup helper..."
+dotnet build $endpointSetupProject -c Release --no-restore
+if ($LASTEXITCODE -ne 0) { throw "Endpoint setup helper build failed." }
+
+Write-Host ""
 Write-Host "Publishing framework-dependent WinUI application payload..."
 Publish-Project -Project $appProject -OutputPath $appPayload -Properties @(
     "WindowsAppSDKSelfContained=false",
@@ -223,10 +230,22 @@ Publish-Project -Project $launcherProject -OutputPath $launcherPayload -Properti
     "InvariantGlobalization=true"
 )
 
+Write-Host ""
+Write-Host "Publishing endpoint setup helper (shared framework-dependent payload)..."
+Publish-Project -Project $endpointSetupProject -OutputPath $endpointSetupPayload -Properties @(
+    "SelfContained=false",
+    "PublishSingleFile=false",
+    "PublishTrimmed=false",
+    "DebugType=None",
+    "DebugSymbols=false"
+)
+
+$endpointSetupExe = Join-Path $endpointSetupPayload "AudioLimits.EndpointSetup.exe"
 $launcherExe = Join-Path $launcherPayload "AudioLimits.exe"
 $appExe = Join-Path $appPayload "AudioLimits.App.exe"
 if (-not (Test-Path -LiteralPath $launcherExe)) { throw "Bootstrap launcher output was not found: $launcherExe" }
 if (-not (Test-Path -LiteralPath $appExe)) { throw "WinUI app output was not found: $appExe" }
+if (-not (Test-Path -LiteralPath $endpointSetupExe)) { throw "Elevated setup helper was not found: $endpointSetupExe" }
 
 Write-Host ""
 Write-Host "Assembling canonical application layout..."
@@ -235,6 +254,14 @@ New-Item -ItemType Directory -Path $distributionApp -Force | Out-Null
 $appSubdirectory = Join-Path $distributionApp "app"
 New-Item -ItemType Directory -Path $appSubdirectory -Force | Out-Null
 Copy-DirectoryContents $appPayload $appSubdirectory
+# Framework-dependent helper shares the application's .NET/NAudio/WinRT DLLs;
+# don't package a second 25 MB copy of Microsoft.Windows.SDK.NET.dll.
+foreach ($suffix in @('.exe', '.dll', '.deps.json', '.runtimeconfig.json')) {
+    $name = 'AudioLimits.EndpointSetup' + $suffix
+    $source = Join-Path $endpointSetupPayload $name
+    if (-not (Test-Path -LiteralPath $source)) { throw "Endpoint helper payload missing: $source" }
+    Copy-Item -LiteralPath $source -Destination (Join-Path $appSubdirectory $name) -Force
+}
 Copy-Item -LiteralPath $launcherExe -Destination (Join-Path $distributionApp "AudioLimits.exe") -Force
 
 # publish\ is an exact copy of the folder users receive after Setup or inside the ZIP.

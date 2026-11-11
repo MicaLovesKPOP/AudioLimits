@@ -10,7 +10,8 @@
 - Inspect Windows playback APO slots without changing them. Show per-device setup diagnostics for disabled enhancements, existing manufacturer effects, missing/invalid registration, and genuinely empty effects slots; open Windows sound settings when enhancements are disabled.
 - Add a planning-only upstream-compatible installation-mode advisor (legacy LFX/GFX, standard SFX/EFX, or combined Bluetooth SFX/MFX); do not perform elevated endpoint registration yet.
 - On remembered-cap restoration, never automatically raise Windows endpoint volume while APO runtime activation is unverified; preserve the regular limit-setting behavior elsewhere.
-- Automatic Equalizer APO endpoint installation is not yet implemented; port-switch and live audio-engine verification are still required before a public release.
+- Experimental one-click device setup: a separately elevated, endpoint-scoped helper can register official Equalizer APO 1.4.2 for a selected playback endpoint with preserved manufacturer effects, admin-owned protected backups, bounded rollback, and a recovery option for interrupted changes. Windows restart is required before applying limits; no audio service restart occurs automatically.
+- This installer has NOT yet been tested on a newly provisioned physical endpoint, and neither the normal release nor the installed app has been replaced. The safe fallback remains the official Device Selector. New versioning, security/licensing review, audio-engine verification, and physical acceptance tests are required before a public release.
 
 ## 1.0.0
 

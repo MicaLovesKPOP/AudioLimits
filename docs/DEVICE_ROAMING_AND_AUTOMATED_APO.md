@@ -1,92 +1,143 @@
-# Device roaming and Equalizer APO provisioning (post-1.0.0)
+# USB endpoint roaming and Audio Limits-managed Equalizer APO setup
 
-Status 2026-11-11: hardware recognition and conservative remembered-limit restoration implemented
-on branch `fix/window-lifecycle-apo-refresh-20261111`. **Not yet released or deployed.**
-Native automatic APO endpoint provisioning is still **unimplemented**.
+**Status (2026-11-11): experimental implementation on**
+`fix/window-lifecycle-apo-refresh-20261111`. Not shipped, deployed, or
+validated on a newly provisioned physical Windows playback endpoint.
 
-## Problem
+## User goal
 
-USB receivers can get a new Windows MMDevice endpoint GUID after replugging, moving
-ports, or a driver re-enumeration. Settings and Equalizer APO attach to that GUID;
-the receiver itself can still be exactly the same hardware. On the owner's MicaPC,
-historical settings held three Corsair HS80 MAX endpoint GUIDs with different caps.
+Audio Limits should recognize a headset after USB-port changes, restore
+previously chosen caps conservatively, and allow the owner to enable volume
+processing for a newly created Windows audio endpoint without navigating
+Equalizer APO's Device Selector. The user's normal window preference is:
+Minimize -> taskbar; X -> tray; explicit tray Exit -> quit.
 
-## What is implemented on the development branch
+## Implemented
 
-- `PlaybackHardwareIdentity` walks the Windows Configuration Manager/PnP
-  parent chain of an active render endpoint. It distinguishes genuine parent USB
-  device serials from port-generated strings containing `&`, and normalizes a
-  model/interface + playback-role key. The raw USB topology suffix isn't persisted.
-- A read-only real-device probe on MicaPC returned a serialized identity for the
-  Corsair HS80 MAX wireless receiver. This validates PnP lookup on that device;
-  it is **not** a completed live cross-port reconnection test.
-- New/changed caps persist that key in an optional field of the existing schema 3.
-  On first startup, any already-configured and connected endpoint can be tagged
-  with its known identity without touching its audio gain. Settings without a
-  connected endpoint cannot be magically attributed to the old receiver.
-- A resolver considers one active matching playback role and consistent saved
-  cap percentages. A serial-based match is eligible for automatic restoration;
-  model-only matches and legacy friendly-name matches require manual confirmation.
-  Conflicting past cap values or concurrent ambiguous devices are never guessed.
-- A read-only APO setup inspector examines the endpoint's eight relevant driver-effect slots, enhancements-disabled flag, and whether its FX key exists. The Devices UI explains the result and opens Windows sound settings directly if enhancements were disabled. Inspection does not elevate, write the registry, or restart Windows Audio.
-- A pure mode advisor reproduces the official 1.4.2 mode-selection heuristics for future native setup: LFX/GFX if only legacy effects exist, otherwise SFX/MFX for combined Bluetooth or SFX/EFX for typical modern endpoints. These are only suggestions; no installation happens.
-- A 5-second tray-resident scan can restore a serialized device cap to a newly
-  enumerated endpoint **only after the exact endpoint is already registered with
-  Equalizer APO** and state recovery is healthy. It invokes the existing
-  `LimitService.SetLimitAsync` transaction, which recalibrates the current
-  endpoint and uses existing mute/rollback protections. Automatic restoration
-  never increases the Windows endpoint volume, even if the APO has not loaded
-  into the audio engine yet. Failed endpoints are not retried repeatedly in the
-  same app session.
-- A device card explains that a remembered cap is NOT active and offers a
-  `Restore N% limit` action. If Device Selector was needed and its endpoint
-  registration succeeds, the requested limit operation resumes without a
-  second click. Every 3 seconds the visible page detects endpoint, APO
-  registration, and saved-cap changes without restarting Audio Limits.
-- The taskbar/tray fix remains: minimize goes to taskbar, X hides to tray, explicit
-  tray Exit quits. The reconnect monitor is cancelled on Exit and a transaction
-  already underway prevents a premature exit.
+- Stable hardware identity for serialized USB devices from Windows PnP ancestry,
+  with a hashed serial and playback role. A new Windows endpoint GUID is never
+  assumed to be the same device based on its name alone.
+- Consistent remembered caps can be restored to recognized serialized hardware.
+  Model-only, old name-only, conflicting, and duplicated device matches require
+  confirmation or are rejected. Reconnection monitoring also runs in the tray.
+- New endpoint restoration is non-boosting: it never automatically raises
+  Windows endpoint volume. The existing limiter's mute/rollback transaction
+  remains authoritative.
+- Read-only Windows APO preflight examines the five ordinary APO slots, three
+  multi-effect slots, enhancements status, and Bluetooth combined-endpoint
+  marker; supplies device-specific guidance in the WinUI Devices page.
+- Native endpoint installer plan: LFX/GFX for endpoints with no FxProperties key
+  or legacy-only effects, SFX/MFX for combined Bluetooth devices with a modern
+  effects key, otherwise SFX/EFX. It saves the original driver effect CLSIDs and
+  chains the appropriate original pre/post effects in the Equalizer APO child
+  registration, following the audited official upstream 1.4.2 behavior.
+- New **AudioLimits.EndpointSetup.exe** is a compact framework-dependent x64
+  helper that shares libraries with the main application, launched only after
+  the user selects "Enable this device" and
+  approves Windows UAC. It accepts only a playback endpoint GUID. The parent
+  WinUI process never elevates itself.
+- The helper rechecks the active playback endpoint, Equalizer APO DLL/COM
+  registration (restricted to audited 1.4.2), driver setup status, and whether
+  Device Selector/Configurator is currently running before making changes.
+- It stores a durable per-endpoint backup in
+  `%ProgramData%\AudioLimits.EndpointSetup.Backups` BEFORE writing the Windows
+  registry. The helper creates this directory with a protected, admin-owned
+  ACL, permits ordinary users read-only access for status, and refuses
+  pre-existing user-writable directories or directory junctions. It preserves
+  existing effects, refuses unsupported/malformed registrations, does not
+  take ownership of protected keys, and restores the original affected
+  values if a transaction fails.
+- A separate UAC-gated recovery mode can restore interrupted/failed writes
+  only when current relevant values still match their original or intended
+  values. Unexpected changes by other installers stop recovery and require
+  review. An original missing FxProperties key is deleted on successful
+  rollback when safe.
+- A successful registration is **not** treated as immediately active. A
+  persisted marker keeps manual and automatic limit changes blocked until
+  the next Windows boot; recovery-required state remains distinct and blocked.
+  Neither the registration check nor the reboot heuristic proves that audio
+  processing is actually active in `audiodg.exe`.
+- The existing official Device Selector remains a fallback for unsupported
+  driver layouts and specialized troubleshooting.
 
-## What is NOT implemented
+## Intentional limitations and release gates
 
-**Automatic registration of Equalizer APO to a newly created Windows endpoint.**
-The official 1.4.2 Device Selector can install the APO while preserving existing
-driver effects and troubleshooting modes, but does not expose a verified
-single-endpoint unattended install interface. Source inspection confirmed only
-`/i` (installer GUI flow) and `/u` (uninstaller) in its main entry point; neither
-is a per-endpoint unattended install command. Upstream code is mirrored at:
+1. The elevated helper **has not been executed in install mode on a real audio
+   endpoint**. Read-only `--inspect` was tested with the installed Corsair
+   HS80 MAX and LG TV; both correctly returned "already registered". Unit
+   tests exercise pure planning and simulated registry writes/rollback under
+   temporary **HKCU test keys**, never the actual MMDevices HKLM keys.
+2. A Windows **restart is required** after our helper reports successful
+   registration. We do not silently restart Windows Audio, disconnect a device,
+   interrupt a call, or assume the live engine loaded the new effect. A future
+   implementation should use a real audio-engine check (for example an audited
+   equivalent of the upstream APO named-pipe test), not registry inference.
+3. Driver-protected registry keys may reject an elevated write. The helper
+   fails closed instead of taking ownership or altering Windows ACLs. That
+   driver needs advanced setup until a separately tested secure path exists.
+4. This implementation follows official Equalizer APO **1.4.2** slot and
+   child-registration semantics only. Any newer version, fork, or unexpected
+   registration fails preflight rather than assuming compatibility.
+5. Before distributing an elevated executable, conduct a security review,
+   including helper integrity and launch from per-user/writable install paths,
+   backup-directory permissions, UAC denial, and arbitrary command arguments.
+   A signed binary and a trustworthy installation path are strongly preferred.
+6. Review GPL licensing and acknowledgments for source-level compatibility
+   with official Equalizer APO. Do not publish a compiled release before
+   license obligations for an implementation based on upstream semantics are
+   understood and met.
+7. Update release versioning and perform physical acceptance tests before
+   publishing or replacing the installed 1.0.0.
+
+## Required physical acceptance tests
+
+- Use a disposable Windows VM or a low-risk non-default playback device first.
+  Verify the installed helper registers exactly the selected endpoint and
+  doesn't modify unrelated microphone, other playback, or manufacturer effects.
+- Verify that Windows Audio loads Equalizer APO after the requested restart.
+  Measure/observe the actual attenuation, rather than equating registry slots
+  with successful audio-engine activation.
+- Test untouched clean FxProperties, absent FxProperties, OEM SFX/MFX/EFX,
+  legacy LFX/GFX, combined Bluetooth, disabled enhancements, unusual or
+  malformed FxProperties, ACL denial, and missing EAPO registration.
+- Interrupt the helper mid-write and test recovery from `Prepared` or
+  `RollbackIncomplete` backups; verify that changed OEM entries cause
+  recovery to refuse overwriting them.
+- Reconnect the HS80 MAX in the same and different USB ports; run while
+  AudioLimits is visible, minimized, and hidden to tray. Check single-instance
+  relaunch, UAC denial, restart-required status, and no increase of Windows
+  volume during remembered-limit restoration.
+- Test the installer/ZIP packaging, update/repair, and per-user installation,
+  including helper trust/permissions. The full packaging script intentionally
+  stops installed AudioLimits processes and must not be run casually during
+  development.
+
+## Validation so far
+
+- 111 Core tests pass (50 existing + 61 new), including recovery refusal after
+  another installer changes relevant registry values, protected backup ACL
+  checks, and the official missing-FxProperties default install mode.
+- Full solution Release build succeeds with 0 warnings and 0 errors.
+- The packaged helper's **read-only** mode returned AlreadyRegistered for both
+  HS80 MAX and LG TV; invalid arguments rejected. A staging test verified the
+  helper launches alongside the published WinUI application using shared DLLs
+  instead of bundling a duplicate 25 MB Windows SDK runtime.
+- No live audio device ACLs, APO registrations, services, or user volume
+  settings were changed by this development session.
+- Build script now includes the helper's four small entry files in the canonical
+  `app/` payload, but
+  a complete installer/ZIP packaging run has **not** been executed.
+- Source is committed on the development branch only when validated; neither
+  the 1.0.0 tag nor installed application is changed.
+
+Audio Limits remains a convenience aid; software and driver audio paths can
+bypass Equalizer APO. It is not a hearing-protection guarantee.
+
+## Upstream references
+
+Official Equalizer APO mirror:
+https://github.com/mirror/equalizerapo/blob/master/DeviceAPOInfo.cpp
 https://github.com/mirror/equalizerapo/blob/master/DeviceSelector/main.cpp
-and https://github.com/mirror/equalizerapo/blob/master/DeviceAPOInfo.cpp .
-The installer backs up existing driver APO slots, may create child-APO entries,
-and can restart Windows Audio to test processing. Directly writing FxProperties
-would risk breaking manufacturer APOs or falsely claiming a limit is active.
 
-We therefore do not modify system APO registrations or restart the Windows Audio
-service automatically. If Windows creates a new endpoint with no APO installed,
-the cap stays inactive and the user must finish selection in the existing
-Device Selector. The refreshed UI notices that change without restarting.
-A future one-click onboarding helper must preserve original effects, use bounded
-UAC, support rollback, and test the actual audio-engine activation before claiming
-success. Source-compatible forks' CLI options must not be assumed to work with
-the official distribution. Avoid a permanent elevated service.
-
-## Validation status
-
-- All 86 Core tests pass (50 pre-existing + 36 new), including serial/port
-  fixtures, conflicting old and new presets, ambiguous identical devices,
-  settings persistence, APO preflight classification, installation-mode hints,
-  and non-boosting remembered-limit transitions.
-- WinUI Release build passes with zero warnings/errors.
-- Real MicaPC read-only detection recognizes the HS80 MAX receiver by a physical
-  USB serial, not by its Windows MMDevice GUID. The read-only APO inspection
-  reports existing Equalizer APO registration for both HS80 MAX and LG TV;
-  this is registry evidence, **not** a live audio-engine success test.
-- **Still required before public release:** true unplug/replug and port-switch
-  acceptance tests; hot-reconnect in tray and visible UI; new port lacking APO;
-  hardware-volume safety and audio-engine verification; relaunch/exit behavior;
-  collision test with two identical receivers, and UAC/driver failure testing.
-- Installed AudioLimits 1.0.0 is deliberately left unchanged until approved
-  acceptance tests and a properly versioned update.
-
-This remains a convenience aid, not an absolute hearing-protection guarantee.
-Windows or apps may bypass the Equalizer APO audio-processing path.
+Microsoft Windows APO architecture:
+https://learn.microsoft.com/en-us/windows-hardware/drivers/audio/windows-11-apis-for-audio-processing-objects

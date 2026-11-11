@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AudioLimits.Launcher", "src
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AudioLimits.Core.Tests", "tests\AudioLimits.Core.Tests\AudioLimits.Core.Tests.csproj", "{B6A6B87D-20FE-4509-9768-E5BB61013874}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AudioLimits.EndpointSetup", "src\AudioLimits.EndpointSetup\AudioLimits.EndpointSetup.csproj", "{DB62AF72-754B-4F94-BED1-53AC3B75970D}"
+EndProject
 Global
     GlobalSection(SolutionConfigurationPlatforms) = preSolution
         Debug|x64 = Debug|x64
@@ -32,5 +34,9 @@ Global
         {B6A6B87D-20FE-4509-9768-E5BB61013874}.Debug|x64.Build.0 = Debug|Any CPU
         {B6A6B87D-20FE-4509-9768-E5BB61013874}.Release|x64.ActiveCfg = Release|Any CPU
         {B6A6B87D-20FE-4509-9768-E5BB61013874}.Release|x64.Build.0 = Release|Any CPU
+        {DB62AF72-754B-4F94-BED1-53AC3B75970D}.Debug|x64.ActiveCfg = Debug|Any CPU
+        {DB62AF72-754B-4F94-BED1-53AC3B75970D}.Debug|x64.Build.0 = Debug|Any CPU
+        {DB62AF72-754B-4F94-BED1-53AC3B75970D}.Release|x64.ActiveCfg = Release|Any CPU
+        {DB62AF72-754B-4F94-BED1-53AC3B75970D}.Release|x64.Build.0 = Release|Any CPU
     EndGlobalSection
 EndGlobal

@@ -14,6 +14,7 @@ public sealed class AppServices
         AudioDevices = new AudioDeviceService();
         EqualizerApo = new EqualizerApoService();
         EndpointSetup = new ApoEndpointSetupInspector(EqualizerApo);
+        Provisioning = new EndpointSetupService();
         Startup = new StartupService();
         Limits = new LimitService(
             AudioDevices,
@@ -28,6 +29,7 @@ public sealed class AppServices
     public AudioDeviceService AudioDevices { get; }
     public EqualizerApoService EqualizerApo { get; }
     public ApoEndpointSetupInspector EndpointSetup { get; }
+    public EndpointSetupService Provisioning { get; }
     public StartupService Startup { get; }
     public LimitService Limits { get; }
     public DeviceReconnectionService Reconnections { get; }

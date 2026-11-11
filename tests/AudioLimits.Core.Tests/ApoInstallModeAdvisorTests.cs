@@ -24,6 +24,15 @@ public sealed class ApoInstallModeAdvisorTests
     }
 
     [Fact]
+    public void MissingFxProperties_UsesLegacyDefaultLikeOfficialSelector()
+    {
+        var result = ApoInstallModeAdvisor.Suggest(
+            new ApoFxRegistrationSnapshot(true, false, false,
+                Array.Empty<ApoFxSlotSnapshot>()));
+        Assert.Equal(ApoInstallModeHint.LegacyLfxGfx, result);
+    }
+
+    [Fact]
     public void CombinedBluetoothEndpoint_PrefersSfxMfx()
     {
         var result = ApoInstallModeAdvisor.Suggest(

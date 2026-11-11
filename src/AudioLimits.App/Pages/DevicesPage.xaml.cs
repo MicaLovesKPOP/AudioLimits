@@ -136,7 +136,8 @@ public sealed partial class DevicesPage : Page
 
     private async void DeviceMonitor_Tick(DispatcherQueueTimer sender, object args)
     {
-        if (_deviceMonitorChecking || _operationInProgress || App.Services.Limits.IsBusy)
+        if (_deviceMonitorChecking || _operationInProgress ||
+            App.Services.Limits.IsBusy || App.Services.Provisioning.IsBusy)
             return;
 
         _deviceMonitorChecking = true;
@@ -144,6 +145,7 @@ public sealed partial class DevicesPage : Page
         {
             var snapshot = await Task.Run(ReadDeviceListSnapshot);
             if (!_loadedOnce || _operationInProgress || App.Services.Limits.IsBusy ||
+                App.Services.Provisioning.IsBusy ||
                 string.Equals(snapshot.Signature, _deviceStateSignature, StringComparison.Ordinal))
                 return;
 
@@ -553,6 +555,63 @@ public sealed partial class DevicesPage : Page
 
         var assessment = await Task.Run(() =>
             App.Services.EndpointSetup.InspectPlaybackEndpoint(device.Device.EndpointGuid));
+        if (assessment.Status == ApoEndpointSetupStatus.AwaitingAudioRestart)
+        {
+            ShowOperationInfo("Restart Windows to finish setup", assessment.Explanation);
+            return false;
+        }
+
+        if (assessment.Status == ApoEndpointSetupStatus.SetupRepairRequired)
+        {
+            var helperAvailable = App.Services.Provisioning.HelperAvailable;
+            var recoveryDialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "Previous audio setup needs recovery",
+                Content = new TextBlock
+                {
+                    Text = assessment.Explanation + "\n\n" +
+                        (helperAvailable
+                            ? "Audio Limits can try restoring its original registry backup. "
+                              + "The recovery refuses to overwrite changes made by other installers."
+                            : "The recovery helper is missing. Repair Audio Limits before retrying."),
+                    TextWrapping = TextWrapping.Wrap
+                },
+                PrimaryButtonText = helperAvailable ? "Restore previous setup" : "",
+                SecondaryButtonText = "Advanced setup",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close
+            };
+
+            var selection = await recoveryDialog.ShowAsync();
+            if (selection == ContentDialogResult.Primary && helperAvailable)
+            {
+                _operationInProgress = true;
+                SetAllActionsEnabled(false);
+                try
+                {
+                    var outcome = await App.Services.Provisioning.RestoreAsync(
+                        device.Device.EndpointGuid);
+                    await RefreshDevicesAsync();
+                    ConfigureStateInfo();
+                    if (outcome.Succeeded)
+                        ShowOperationInfo("Previous setup restored", outcome.Message);
+                    else
+                        ShowOperationError("Automatic recovery wasn't completed", outcome.Message);
+                }
+                finally
+                {
+                    _operationInProgress = false;
+                    SetAllActionsEnabled(true);
+                }
+            }
+            else if (selection == ContentDialogResult.Secondary)
+            {
+                await OpenAudioSetupAsync();
+            }
+
+            return false;
+        }
 
         if (assessment.Status == ApoEndpointSetupStatus.EnhancementsDisabled)
         {
@@ -586,6 +645,69 @@ public sealed partial class DevicesPage : Page
                     AppLog.Error("Could not open Windows sound settings", ex);
                     ShowOperationError("Sound settings couldn't open", ex.Message);
                 }
+            }
+
+            return false;
+        }
+
+        // Automatic endpoint-only registration is the normal path. It is offered
+        // only when the upstream-compatible plan says the existing driver effects
+        // can be preserved, and the packaged elevated helper is available.
+        var plan = await Task.Run(() =>
+            ApoEndpointRegistrationPlanner.Build(
+                ApoEndpointSetupInspector.ReadRegistration(device.Device.EndpointGuid),
+                apo.IsActiveForEndpoint(device.Device.EndpointGuid)));
+
+        if (plan.CanInstall && App.Services.Provisioning.HelperAvailable)
+        {
+            var enableDialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "Enable Audio Limits for this playback device?",
+                Content = new TextBlock
+                {
+                    Text = $"Device: {device.Device.FriendlyName}\n\n" +
+                           "Audio Limits will ask Windows for administrator permission to register " +
+                           "Equalizer APO for this playback device only. It saves the existing driver-effect " +
+                           "registrations for rollback. A Windows restart is required before a limit " +
+                           "can safely be applied; no audio service will be restarted automatically.",
+                    TextWrapping = TextWrapping.Wrap
+                },
+                PrimaryButtonText = "Enable this device",
+                SecondaryButtonText = "Advanced setup",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary
+            };
+
+            var choice = await enableDialog.ShowAsync();
+            if (choice == ContentDialogResult.Primary)
+            {
+                _operationInProgress = true;
+                SetAllActionsEnabled(false);
+                try
+                {
+                    var outcome = await App.Services.Provisioning.EnableAsync(
+                        device.Device.EndpointGuid);
+                    await RefreshDevicesAsync();
+                    ConfigureStateInfo();
+                    if (outcome.Succeeded)
+                        ShowOperationInfo("Registered; restart Windows to activate", outcome.Message);
+                    else
+                        ShowOperationError("Automatic audio setup couldn't finish", outcome.Message);
+                }
+                finally
+                {
+                    _operationInProgress = false;
+                    SetAllActionsEnabled(true);
+                }
+
+                return false;
+            }
+
+            if (choice == ContentDialogResult.Secondary)
+            {
+                await OpenAudioSetupAsync();
+                return false;
             }
 
             return false;

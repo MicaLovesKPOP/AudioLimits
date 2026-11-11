@@ -20,6 +20,11 @@ public static class ApoInstallModeAdvisor
         if (!state.InspectionSucceeded)
             return null;
 
+        // Upstream DeviceAPOInfo::load() initializes LFX/GFX and only chooses
+        // a modern mode in the branch where FxProperties already exists.
+        if (!state.FxKeyExists)
+            return ApoInstallModeHint.LegacyLfxGfx;
+
         var slots = state.EffectSlots.Select(x => x.Slot).ToHashSet();
         var legacyOnly = (slots.Contains(1) || slots.Contains(2)) &&
             !slots.Contains(5) && !slots.Contains(6) &&
