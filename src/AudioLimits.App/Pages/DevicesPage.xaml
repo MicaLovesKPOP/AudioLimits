@@ -144,6 +144,12 @@
                                                      Margin="20,14,20,0"
                                                      Title="Saved limit recognized, not active"
                                                      Message="{x:Bind RememberedLimitMessage}" />
+                                            <InfoBar IsOpen="{x:Bind NeedsApoSetupNotice}"
+                                                     IsClosable="False"
+                                                     Severity="Informational"
+                                                     Margin="20,14,20,0"
+                                                     Title="Audio setup needed"
+                                                     Message="{x:Bind ApoSetupNotice}" />
 
                                             <Grid Padding="20,15,20,10"
                                                   ColumnSpacing="24"

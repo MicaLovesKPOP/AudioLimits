@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using AudioLimits.App.Services;
 using AudioLimits.App.ViewModels;
 using AudioLimits.Core.Models;
@@ -18,7 +19,10 @@ public sealed partial class DevicesPage : Page
     private string _deviceStateSignature = string.Empty;
     private DispatcherQueueTimer? _deviceMonitor;
 
-    private sealed record DeviceListSnapshot(IReadOnlyList<AudioDeviceInfo> Devices, string Signature);
+    private sealed record DeviceListSnapshot(
+        IReadOnlyList<AudioDeviceInfo> Devices,
+        string Signature,
+        IReadOnlyDictionary<string, ApoEndpointSetupAssessment> Setup);
 
     public DevicesPage()
     {
@@ -66,14 +70,17 @@ public sealed partial class DevicesPage : Page
     {
         var services = App.Services;
         var deviceInfos = services.AudioDevices.GetActiveRenderDevices();
+        var setup = deviceInfos.ToDictionary(
+            info => info.Id,
+            info => services.EndpointSetup.InspectPlaybackEndpoint(info.EndpointGuid));
 
         // Include both Windows endpoint identity and Equalizer APO registration.
         // An external Device Selector edit or a USB device reconnect can change
         // these while Audio Limits is already running.
         var signature = $"APO installed: {services.EqualizerApo.IsInstalled}\n" +
             string.Join("\n", deviceInfos.Select(info =>
-                $"{info.Id}|{info.FriendlyName}|{info.HardwareKey}|{services.EqualizerApo.GetPreferredProcessingStage(info.EndpointGuid)}|{services.Limits.FindLimit(info.EndpointGuid)?.LimitPercent}"));
-        return new DeviceListSnapshot(deviceInfos, signature);
+                $"{info.Id}|{info.FriendlyName}|{info.HardwareKey}|{setup[info.Id].Status}|{services.EqualizerApo.GetPreferredProcessingStage(info.EndpointGuid)}|{services.Limits.FindLimit(info.EndpointGuid)?.LimitPercent}"));
+        return new DeviceListSnapshot(deviceInfos, signature, setup);
     }
 
     private async Task RefreshDevicesAsync()
@@ -98,6 +105,7 @@ public sealed partial class DevicesPage : Page
                     services.AudioDevices,
                     services.EqualizerApo,
                     services.Limits.FindRememberedLimit(info, snapshot.Devices),
+                    snapshot.Setup[info.Id],
                     DispatcherQueue));
             }
             catch (Exception ex)
@@ -248,7 +256,8 @@ public sealed partial class DevicesPage : Page
             device,
             "Restoring saved limit...",
             () => App.Services.Limits.SetLimitAsync(
-                device.Device, device.RememberedLimitPercent));
+                device.Device, device.RememberedLimitPercent,
+                preventEndpointGainIncrease: true));
     }
 
     private async void SetLimitButton_Click(object sender, RoutedEventArgs e)
@@ -542,6 +551,46 @@ public sealed partial class DevicesPage : Page
         if (device.ApoReady)
             return true;
 
+        var assessment = await Task.Run(() =>
+            App.Services.EndpointSetup.InspectPlaybackEndpoint(device.Device.EndpointGuid));
+
+        if (assessment.Status == ApoEndpointSetupStatus.EnhancementsDisabled)
+        {
+            var disabledDialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "Windows audio enhancements are disabled",
+                Content = new TextBlock
+                {
+                    Text = $"For '{device.Device.FriendlyName}', Windows is blocking audio effects. " +
+                           "Open Windows sound settings, select this playback device, and enable audio enhancements. " +
+                           "Audio Limits will notice the change automatically. No limit was applied.",
+                    TextWrapping = TextWrapping.Wrap
+                },
+                PrimaryButtonText = "Open sound settings",
+                CloseButtonText = "Not now",
+                DefaultButton = ContentDialogButton.Primary
+            };
+
+            if (await disabledDialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo("ms-settings:sound")
+                    {
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    AppLog.Error("Could not open Windows sound settings", ex);
+                    ShowOperationError("Sound settings couldn't open", ex.Message);
+                }
+            }
+
+            return false;
+        }
+
         var selectorAvailable = apo.DeviceSelectorPath is not null;
         var dialog = new ContentDialog
         {
@@ -550,12 +599,12 @@ public sealed partial class DevicesPage : Page
             Content = new TextBlock
             {
                 Text = selectorAvailable
-                    ? $"To set a limit for '{device.Device.FriendlyName}', Equalizer APO must first be enabled for that exact playback device.\n\nIn the Device Selector, tick the playback device with this name (not its microphone), then click OK. Leave troubleshooting options unchanged unless there is a problem. Audio Limits will automatically recheck when the selector closes."
+                    ? $"{assessment.Explanation}\n\nTo set a limit for '{device.Device.FriendlyName}', enable Equalizer APO for this exact playback device. In the Device Selector, tick the matching playback device (not its microphone), then click OK. Leave troubleshooting options unchanged unless there is a problem. Audio Limits will recheck automatically when the selector closes."
                     : "Equalizer APO is installed, but its Device Selector couldn't be found. Repair Equalizer APO now?",
                 TextWrapping = TextWrapping.Wrap
             },
             PrimaryButtonText = selectorAvailable
-                ? "Set up playback devices"
+                ? "Open advanced device setup"
                 : "Repair Equalizer APO",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary
@@ -617,8 +666,8 @@ public sealed partial class DevicesPage : Page
 
             try
             {
-                ConfigureStateInfo();
                 await RefreshDevicesAsync();
+                ConfigureStateInfo();
             }
             catch (Exception refreshEx)
             {

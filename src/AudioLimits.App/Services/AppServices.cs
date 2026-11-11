@@ -13,6 +13,7 @@ public sealed class AppServices
         SettingsLoad = SettingsStore.Load();
         AudioDevices = new AudioDeviceService();
         EqualizerApo = new EqualizerApoService();
+        EndpointSetup = new ApoEndpointSetupInspector(EqualizerApo);
         Startup = new StartupService();
         Limits = new LimitService(
             AudioDevices,
@@ -26,6 +27,7 @@ public sealed class AppServices
     public SettingsLoadResult SettingsLoad { get; }
     public AudioDeviceService AudioDevices { get; }
     public EqualizerApoService EqualizerApo { get; }
+    public ApoEndpointSetupInspector EndpointSetup { get; }
     public StartupService Startup { get; }
     public LimitService Limits { get; }
     public DeviceReconnectionService Reconnections { get; }

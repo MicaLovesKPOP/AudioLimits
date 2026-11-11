@@ -13,6 +13,26 @@ public sealed class LimitTransitionPlannerTests
         Assert.True(plan.RequiresTransitionMute);
     }
 
+    [Theory]
+    [InlineData(-40, -100, 0, 0, -20)]
+    [InlineData(-60, -100, 0, -8, -35)]
+    [InlineData(-20, -100, 0, 0, -2)]
+    [InlineData(0, -100, 0, 0, -25)]
+    public void RememberedLimit_NeverAutomaticallyRaisesWindowsEndpoint(
+        double endpointDb,
+        double minDb,
+        double maxDb,
+        double oldAttenuation,
+        double newAttenuation)
+    {
+        var plan = LimitTransitionPlanner.Plan(
+            endpointDb, minDb, maxDb, oldAttenuation, newAttenuation,
+            preventEndpointGainIncrease: true);
+        Assert.Equal(LimitTransitionOrder.ConfigThenEndpoint, plan.Order);
+        Assert.True(plan.TargetEndpointDb <= endpointDb + 0.0001);
+        Assert.True(plan.RequiresTransitionMute);
+    }
+
     [Fact]
     public void WeakerLimit_LowersEndpointBeforeRelaxingConfig()
     {

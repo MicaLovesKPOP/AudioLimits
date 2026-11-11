@@ -62,8 +62,8 @@ public sealed class LimitService
         if (match.Kind != RememberedLimitMatchKind.Automatic)
             return false;
 
-        await SetLimitAsync(device, match.LimitPercent);
-        AppLog.Info($"Restored remembered {match.LimitPercent}% limit for {device.FriendlyName}");
+        await SetLimitAsync(device, match.LimitPercent, preventEndpointGainIncrease: true);
+        AppLog.Info($"Configured remembered {match.LimitPercent}% limit for {device.FriendlyName}; Windows endpoint volume was not increased");
         return true;
     }
 
@@ -327,7 +327,10 @@ public sealed class LimitService
         AudioDeviceInfo Device,
         bool WasMuted);
 
-    public async Task SetLimitAsync(AudioDeviceInfo device, int percent)
+    public async Task SetLimitAsync(
+        AudioDeviceInfo device,
+        int percent,
+        bool preventEndpointGainIncrease = false)
     {
         if (percent >= 100)
         {
@@ -377,7 +380,8 @@ public sealed class LimitService
                 previous,
                 desired,
                 previousWasActive,
-                previousAppliedAttenuation);
+                previousAppliedAttenuation,
+                preventEndpointGainIncrease);
         }
         finally
         {
@@ -564,7 +568,8 @@ public sealed class LimitService
         DeviceLimit? previous,
         DeviceLimit? desired,
         bool previousWasActive,
-        double previousAppliedAttenuation)
+        double previousAppliedAttenuation,
+        bool preventEndpointGainIncrease = false)
     {
         var pending = NewPending(
             device,
@@ -585,7 +590,8 @@ public sealed class LimitService
                 snapshot.MinDb,
                 snapshot.MaxDb,
                 previousAppliedAttenuation,
-                newAttenuation);
+                newAttenuation,
+                preventEndpointGainIncrease);
 
         var diagnosticId = Guid.NewGuid().ToString("N")[..8];
         LogTransitionDiagnostics(diagnosticId, "start", device, previous);

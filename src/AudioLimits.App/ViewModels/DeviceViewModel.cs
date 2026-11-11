@@ -17,6 +17,7 @@ public sealed class DeviceViewModel : INotifyPropertyChanged, IDisposable
     private readonly bool _apoInstalled;
     private readonly bool _baseActionsEnabled;
     private readonly RememberedLimitMatch _remembered;
+    private readonly ApoEndpointSetupAssessment _setup;
 
     private int _windowsPercent;
     private bool _muted;
@@ -31,11 +32,13 @@ public sealed class DeviceViewModel : INotifyPropertyChanged, IDisposable
         AudioDeviceService audio,
         EqualizerApoService apo,
         RememberedLimitMatch remembered,
+        ApoEndpointSetupAssessment setup,
         Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
     {
         Device = device;
         _audio = audio;
         _remembered = remembered;
+        _setup = setup;
         _dispatcherQueue = dispatcherQueue;
         _limit = limits.FindLimit(device.EndpointGuid)?.Clone();
         _limitActive = _limit is not null && limits.IsLimitActive(_limit);
@@ -78,6 +81,9 @@ public sealed class DeviceViewModel : INotifyPropertyChanged, IDisposable
             ? $"This USB device was recognized from its hardware serial. Its saved {_remembered.LimitPercent}% cap isn't active on this Windows endpoint yet."
             : $"This looks like a previously configured device. Its {_remembered.LimitPercent}% cap was NOT applied automatically because the match needs confirmation.";
     public bool ApoReady { get; }
+    public bool NeedsApoSetupNotice =>
+        _apoInstalled && !ApoReady && !HasLimit && !HasRememberedLimit;
+    public string ApoSetupNotice => _setup.Explanation;
     public bool HasHardwareVolume => Device.SupportsHardwareVolume;
     public bool IsLimitActive => _limitActive;
     public bool IsLimitInactive => _limit is not null && !_limitActive;
@@ -87,7 +93,7 @@ public sealed class DeviceViewModel : INotifyPropertyChanged, IDisposable
     public string InactiveLimitMessage => !_apoInstalled
         ? "Equalizer APO must be installed before this saved limit can affect audio."
         : !ApoReady
-            ? "This playback device is not enabled for Audio Limits. Use Manage devices in Settings to enable it."
+            ? _setup.Explanation
             : "Audio Limits couldn't verify this saved limit as active. Reopen the app before changing it.";
 
     public string StatusText => _operationInProgress ? _operationStatus : _idleStatusText;

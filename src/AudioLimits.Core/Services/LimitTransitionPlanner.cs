@@ -27,7 +27,8 @@ public static class LimitTransitionPlanner
         double minEndpointDb,
         double maxEndpointDb,
         double previousAttenuationDb,
-        double desiredAttenuationDb)
+        double desiredAttenuationDb,
+        bool preventEndpointGainIncrease = false)
     {
         var previousActualDb = currentEndpointDb + previousAttenuationDb;
         var rawTargetEndpointDb = previousActualDb - desiredAttenuationDb;
@@ -35,6 +36,8 @@ public static class LimitTransitionPlanner
             rawTargetEndpointDb,
             minEndpointDb,
             maxEndpointDb);
+        if (preventEndpointGainIncrease)
+            targetEndpointDb = Math.Min(targetEndpointDb, currentEndpointDb);
 
         var delta = desiredAttenuationDb - previousAttenuationDb;
         var order = delta switch
