@@ -16,6 +16,7 @@ public sealed class DeviceViewModel : INotifyPropertyChanged, IDisposable
     private readonly string _idleStatusText;
     private readonly bool _apoInstalled;
     private readonly bool _baseActionsEnabled;
+    private readonly RememberedLimitMatch _remembered;
 
     private int _windowsPercent;
     private bool _muted;
@@ -29,10 +30,12 @@ public sealed class DeviceViewModel : INotifyPropertyChanged, IDisposable
         LimitService limits,
         AudioDeviceService audio,
         EqualizerApoService apo,
+        RememberedLimitMatch remembered,
         Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
     {
         Device = device;
         _audio = audio;
+        _remembered = remembered;
         _dispatcherQueue = dispatcherQueue;
         _limit = limits.FindLimit(device.EndpointGuid)?.Clone();
         _limitActive = _limit is not null && limits.IsLimitActive(_limit);
@@ -65,6 +68,15 @@ public sealed class DeviceViewModel : INotifyPropertyChanged, IDisposable
     public bool HasDeviceDescription => !string.IsNullOrWhiteSpace(DeviceDescription);
     public bool HasLimit => _limit is not null;
     public int? LimitPercent => _limit?.LimitPercent;
+    public bool HasRememberedLimit =>
+        !HasLimit && _remembered.Kind != RememberedLimitMatchKind.None;
+    public int RememberedLimitPercent => _remembered.LimitPercent;
+    public string RestoreLimitButtonText => $"Restore {_remembered.LimitPercent}% limit";
+    public string RememberedLimitMessage => !ApoReady
+        ? $"A saved {_remembered.LimitPercent}% cap may belong to this device, but audio processing isn't enabled for this Windows endpoint. The cap is NOT active."
+        : _remembered.Kind == RememberedLimitMatchKind.Automatic
+            ? $"This USB device was recognized from its hardware serial. Its saved {_remembered.LimitPercent}% cap isn't active on this Windows endpoint yet."
+            : $"This looks like a previously configured device. Its {_remembered.LimitPercent}% cap was NOT applied automatically because the match needs confirmation.";
     public bool ApoReady { get; }
     public bool HasHardwareVolume => Device.SupportsHardwareVolume;
     public bool IsLimitActive => _limitActive;
@@ -119,6 +131,7 @@ public sealed class DeviceViewModel : INotifyPropertyChanged, IDisposable
     public bool CanSetLimit => _apoInstalled && _baseActionsEnabled && _globalActionsEnabled && !_operationInProgress;
     public bool CanSetCurrent => CanSetLimit && !HasHardwareVolume && !_muted && _windowsPercent is > 0 and < 100;
     public bool CanRemoveLimit => HasLimit && _apoInstalled && CanSetLimit;
+    public bool CanRestoreRememberedLimit => HasRememberedLimit && CanSetLimit;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -206,6 +219,7 @@ public sealed class DeviceViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(CanSetLimit));
         OnPropertyChanged(nameof(CanSetCurrent));
         OnPropertyChanged(nameof(CanRemoveLimit));
+        OnPropertyChanged(nameof(CanRestoreRememberedLimit));
         OnPropertyChanged(nameof(SetCurrentHelpText));
     }
 

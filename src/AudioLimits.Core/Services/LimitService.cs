@@ -41,6 +41,32 @@ public sealed class LimitService
 
     public DeviceLimit? FindLimit(string endpointGuid) => _settings.Find(endpointGuid);
 
+    public RememberedLimitMatch FindRememberedLimit(
+        AudioDeviceInfo device, IReadOnlyList<AudioDeviceInfo> activeDevices) =>
+        RememberedLimitResolver.Find(device, activeDevices, _settings.Limits);
+
+    /// <summary>
+    /// Restores only a cap associated with a stable USB serial and a uniquely
+    /// identified render endpoint. The normal limiter transaction recalibrates
+    /// the new endpoint before changing audio gain. Never claim a cap is active
+    /// simply because a similar device is connected.
+    /// </summary>
+    public async Task<bool> TryRestoreRememberedLimitAsync(
+        AudioDeviceInfo device, IReadOnlyList<AudioDeviceInfo> activeDevices)
+    {
+        if (!CanModifyLimits || IsBusy || !_apo.IsInstalled ||
+            !_apo.IsActiveForEndpoint(device.EndpointGuid))
+            return false;
+
+        var match = FindRememberedLimit(device, activeDevices);
+        if (match.Kind != RememberedLimitMatchKind.Automatic)
+            return false;
+
+        await SetLimitAsync(device, match.LimitPercent);
+        AppLog.Info($"Restored remembered {match.LimitPercent}% limit for {device.FriendlyName}");
+        return true;
+    }
+
     public string? TakeOperationNotice()
     {
         var notice = _operationNotice;
@@ -100,6 +126,8 @@ public sealed class LimitService
 
             if (_apo.IsInstalled)
                 await ReconcileCommittedConfigurationAsync();
+
+            RememberConnectedHardwareIdentities();
         }
         catch (Exception ex)
         {
@@ -116,6 +144,34 @@ public sealed class LimitService
         }
     }
 
+
+    private void RememberConnectedHardwareIdentities()
+    {
+        try
+        {
+            // Upgrade existing endpoint-specific settings without changing the cap
+            // or inferring hardware identities for disconnected endpoints.
+            var changed = false;
+            foreach (var device in _audio.GetActiveRenderDevices())
+            {
+                var saved = _settings.Find(device.EndpointGuid);
+                if (saved is null || !string.IsNullOrWhiteSpace(saved.HardwareKey) ||
+                    string.IsNullOrWhiteSpace(device.HardwareKey))
+                    continue;
+
+                saved.HardwareKey = device.HardwareKey;
+                changed = true;
+            }
+
+            if (changed)
+                _store.Save(_settings);
+        }
+        catch (Exception ex)
+        {
+            // Optional metadata must not turn a safe cap into an uncertain state.
+            AppLog.Error("Could not remember connected playback hardware", ex);
+        }
+    }
 
     private async Task ReconcileCommittedConfigurationAsync()
     {
@@ -308,6 +364,7 @@ public sealed class LimitService
             {
                 EndpointGuid = device.EndpointGuid,
                 FriendlyName = device.FriendlyName,
+                HardwareKey = device.HardwareKey,
                 LimitPercent = percent,
                 AttenuationDb = attenuationDb,
                 VolumeCurveDb = curve.DbByPercent.ToList(),
@@ -374,6 +431,7 @@ public sealed class LimitService
             {
                 EndpointGuid = device.EndpointGuid,
                 FriendlyName = device.FriendlyName,
+                HardwareKey = device.HardwareKey,
                 LimitPercent = displayPercent,
                 AttenuationDb = currentActualDb - snapshot.MaxDb,
                 VolumeCurveDb = curve.DbByPercent.ToList(),

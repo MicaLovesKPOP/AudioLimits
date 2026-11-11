@@ -19,6 +19,7 @@ public sealed class AppServices
             EqualizerApo,
             SettingsStore,
             SettingsLoad);
+        Reconnections = new DeviceReconnectionService(AudioDevices, EqualizerApo, Limits);
     }
 
     public SettingsStore SettingsStore { get; }
@@ -27,6 +28,7 @@ public sealed class AppServices
     public EqualizerApoService EqualizerApo { get; }
     public StartupService Startup { get; }
     public LimitService Limits { get; }
+    public DeviceReconnectionService Reconnections { get; }
 
     public Task EnsureInitializedAsync()
     {

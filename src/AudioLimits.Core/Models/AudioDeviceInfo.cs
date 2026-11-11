@@ -9,7 +9,8 @@ public sealed record AudioDeviceInfo(
     float MinDb,
     float MaxDb,
     bool Muted,
-    bool SupportsHardwareVolume);
+    bool SupportsHardwareVolume,
+    string? HardwareKey = null);
 
 public sealed record AudioDeviceSnapshot(
     string Id,

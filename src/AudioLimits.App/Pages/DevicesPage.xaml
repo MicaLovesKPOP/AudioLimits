@@ -138,6 +138,12 @@
                                                      Margin="20,14,20,0"
                                                      Title="{x:Bind InactiveLimitTitle}"
                                                      Message="{x:Bind InactiveLimitMessage}" />
+                                            <InfoBar IsOpen="{x:Bind HasRememberedLimit}"
+                                                     IsClosable="False"
+                                                     Severity="Warning"
+                                                     Margin="20,14,20,0"
+                                                     Title="Saved limit recognized, not active"
+                                                     Message="{x:Bind RememberedLimitMessage}" />
 
                                             <Grid Padding="20,15,20,10"
                                                   ColumnSpacing="24"
@@ -187,6 +193,11 @@
                                             <StackPanel Orientation="Horizontal"
                                                         Spacing="8"
                                                         Padding="20,4,20,18">
+                                                <Button Content="{x:Bind RestoreLimitButtonText}"
+                                                        Tag="{x:Bind Device.Id}"
+                                                        Visibility="{x:Bind HasRememberedLimit}"
+                                                        IsEnabled="{x:Bind CanRestoreRememberedLimit, Mode=OneWay}"
+                                                        Click="RestoreLimitButton_Click" />
                                                 <Button Content="{x:Bind SetLimitButtonText}"
                                                         Tag="{x:Bind Device.Id}"
                                                         IsEnabled="{x:Bind CanSetLimit, Mode=OneWay}"

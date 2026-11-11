@@ -171,7 +171,8 @@ public sealed class AudioDeviceService
             range.MinDecibels,
             range.MaxDecibels,
             volume.Mute,
-            (volume.HardwareSupport & EEndpointHardwareSupport.Volume) != 0);
+            (volume.HardwareSupport & EEndpointHardwareSupport.Volume) != 0,
+            PlaybackHardwareIdentity.TryRead(id, device.FriendlyName));
     }
 
     private static string SafeName(MMDevice device)

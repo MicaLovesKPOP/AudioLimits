@@ -104,6 +104,7 @@ public sealed partial class MainWindow : Window
 
     public void RequestExit()
     {
+        App.Services.Reconnections.Stop();
         if (CanExitSafely())
         {
             // Closing the window hides it to the tray; the explicit tray Exit
@@ -121,7 +122,8 @@ public sealed partial class MainWindow : Window
 
     private bool CanExitSafely() =>
         App.Services.Limits.InitializationComplete &&
-        !App.Services.Limits.IsBusy;
+        !App.Services.Limits.IsBusy &&
+        !App.Services.Reconnections.IsApplying;
 
     private void Root_Loaded(object sender, RoutedEventArgs e)
     {
@@ -200,6 +202,7 @@ public sealed partial class MainWindow : Window
 
         // With no tray, close normally rather than leaving an invisible process.
         // Explicit Exit from the tray follows this same safe-shutdown path.
+        App.Services.Reconnections.Stop();
         if (CanExitSafely())
         {
             PrepareForExit();

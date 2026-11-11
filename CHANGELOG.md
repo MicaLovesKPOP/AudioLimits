@@ -4,7 +4,10 @@
 
 - Change the normal window controls: minimize remains on the taskbar, X hides to the tray, and explicit tray Exit quits safely.
 - Refresh the active playback-device list and Equalizer APO registration while the Devices page is open, detecting changes made in Device Selector or after USB endpoint re-enumeration without restarting Audio Limits.
-- This does not yet automatically install Equalizer APO on newly created playback endpoints or migrate limits between endpoint IDs; those require a separate safeguarded implementation and on-device verification.
+- Identify serialized USB receivers across new Windows endpoint IDs via Windows PnP ancestry; conservatively recognize older name-only presets without silently applying them.
+- Remember hardware identity with saved caps, offer a Restore saved limit action, and automatically restore a consistent serialized receiver cap while running in the tray **only when Equalizer APO is already registered to the new endpoint**.
+- Keep changes inside the existing safe limiter transaction, with ambiguous identities, conflicting saved caps, and missing processing left inactive instead of guessed.
+- Automatic Equalizer APO endpoint installation is not yet implemented; port-switch and live audio-engine verification are still required before a public release.
 
 ## 1.0.0
 

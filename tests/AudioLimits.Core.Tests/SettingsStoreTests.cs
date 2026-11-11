@@ -20,6 +20,33 @@ public sealed class SettingsStoreTests
     }
 
     [Fact]
+    public void HardwareIdentity_RoundTripsInExistingSettingsSchema()
+    {
+        using var temp = new TemporaryDirectory();
+        var store = new SettingsStore(temp.Path);
+        var endpoint = Guid.NewGuid().ToString("B").ToUpperInvariant();
+        const string hardwareKey =
+            "USB-SERIAL:VID_1B1C&PID_0A97&MI_00:3E2FAE313F358DA8|HEADSET EARPHONE";
+        var settings = new AppSettings();
+        settings.Limits.Add(new DeviceLimit
+        {
+            EndpointGuid = endpoint,
+            FriendlyName = "Headset Earphone",
+            HardwareKey = hardwareKey,
+            LimitPercent = 32,
+            AttenuationDb = -20
+        });
+
+        store.Save(settings);
+        var readBack = store.Load();
+
+        Assert.True(readBack.IsAuthoritative);
+        Assert.Equal(hardwareKey, Assert.Single(readBack.Settings.Limits).HardwareKey);
+        Assert.Equal(hardwareKey, readBack.Settings.Limits[0].Clone().HardwareKey);
+        Assert.Equal(3, readBack.Settings.SchemaVersion);
+    }
+
+    [Fact]
     public void MissingPrimaryWithValidBackup_RecoversAuthoritativeState()
     {
         using var temp = new TemporaryDirectory();

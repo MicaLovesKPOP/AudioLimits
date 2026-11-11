@@ -25,6 +25,7 @@ public sealed class DeviceLimit
 {
     public string EndpointGuid { get; set; } = "";
     public string FriendlyName { get; set; } = "";
+    public string? HardwareKey { get; set; }
     public int LimitPercent { get; set; }
     public double AttenuationDb { get; set; }
     public List<double> VolumeCurveDb { get; set; } = new();
@@ -34,6 +35,7 @@ public sealed class DeviceLimit
     {
         EndpointGuid = EndpointGuid,
         FriendlyName = FriendlyName,
+        HardwareKey = HardwareKey,
         LimitPercent = LimitPercent,
         AttenuationDb = AttenuationDb,
         VolumeCurveDb = new List<double>(VolumeCurveDb),

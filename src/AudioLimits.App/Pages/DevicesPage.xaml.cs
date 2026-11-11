@@ -72,7 +72,7 @@ public sealed partial class DevicesPage : Page
         // these while Audio Limits is already running.
         var signature = $"APO installed: {services.EqualizerApo.IsInstalled}\n" +
             string.Join("\n", deviceInfos.Select(info =>
-                $"{info.Id}|{info.FriendlyName}|{services.EqualizerApo.GetPreferredProcessingStage(info.EndpointGuid)}"));
+                $"{info.Id}|{info.FriendlyName}|{info.HardwareKey}|{services.EqualizerApo.GetPreferredProcessingStage(info.EndpointGuid)}|{services.Limits.FindLimit(info.EndpointGuid)?.LimitPercent}"));
         return new DeviceListSnapshot(deviceInfos, signature);
     }
 
@@ -97,6 +97,7 @@ public sealed partial class DevicesPage : Page
                     services.Limits,
                     services.AudioDevices,
                     services.EqualizerApo,
+                    services.Limits.FindRememberedLimit(info, snapshot.Devices),
                     DispatcherQueue));
             }
             catch (Exception ex)
@@ -232,6 +233,22 @@ public sealed partial class DevicesPage : Page
             return null;
 
         return Devices.FirstOrDefault(x => string.Equals(x.Device.Id, id, StringComparison.Ordinal));
+    }
+
+    private async void RestoreLimitButton_Click(object sender, RoutedEventArgs e)
+    {
+        var device = FindDeviceFromButton(sender);
+        if (device is null || !device.HasRememberedLimit || _operationInProgress)
+            return;
+
+        if (!await EnsureSetupForChangeAsync(device))
+            return;
+
+        await RunLimitOperationAsync(
+            device,
+            "Restoring saved limit...",
+            () => App.Services.Limits.SetLimitAsync(
+                device.Device, device.RememberedLimitPercent));
     }
 
     private async void SetLimitButton_Click(object sender, RoutedEventArgs e)
@@ -533,7 +550,7 @@ public sealed partial class DevicesPage : Page
             Content = new TextBlock
             {
                 Text = selectorAvailable
-                    ? "This playback device isn't enabled for Audio Limits yet. Open Equalizer APO's Device Selector now?"
+                    ? $"To set a limit for '{device.Device.FriendlyName}', Equalizer APO must first be enabled for that exact playback device.\n\nIn the Device Selector, tick the playback device with this name (not its microphone), then click OK. Leave troubleshooting options unchanged unless there is a problem. Audio Limits will automatically recheck when the selector closes."
                     : "Equalizer APO is installed, but its Device Selector couldn't be found. Repair Equalizer APO now?",
                 TextWrapping = TextWrapping.Wrap
             },
@@ -547,9 +564,24 @@ public sealed partial class DevicesPage : Page
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
         {
             if (selectorAvailable)
+            {
                 await OpenAudioSetupAsync();
-            else
-                await InstallEqualizerApoAsync();
+                // If Device Selector successfully registered this endpoint,
+                // resume the original action instead of making the user click
+                // Set/Restore a second time. Do not trust the old VM's status.
+                if (apo.IsActiveForEndpoint(device.Device.EndpointGuid) &&
+                    limits.CanModifyLimits)
+                    return true;
+
+                ShowOperationInfo(
+                    "Playback device still needs setup",
+                    $"Equalizer APO has not been detected for '{device.Device.FriendlyName}'. " +
+                    "No new volume limit was applied. Audio Limits checks for device changes automatically; " +
+                    "if the selector requested an audio-service or Windows restart, complete that step first.");
+                return false;
+            }
+
+            await InstallEqualizerApoAsync();
         }
 
         return false;

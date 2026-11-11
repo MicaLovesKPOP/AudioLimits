@@ -68,6 +68,7 @@ public partial class App : Application
         try
         {
             await Services.EnsureInitializedAsync();
+            Services.Reconnections.Start();
         }
         catch (Exception ex)
         {

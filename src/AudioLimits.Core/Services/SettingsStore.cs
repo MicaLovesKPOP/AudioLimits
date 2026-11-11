@@ -303,6 +303,11 @@ public sealed class SettingsStore
         limit.FriendlyName = string.IsNullOrWhiteSpace(limit.FriendlyName)
             ? "Audio device"
             : limit.FriendlyName.Trim();
+        if (limit.HardwareKey is { Length: > 512 })
+            throw new InvalidDataException("Audio hardware identifier is too long.");
+        limit.HardwareKey = string.IsNullOrWhiteSpace(limit.HardwareKey)
+            ? null
+            : limit.HardwareKey.Trim();
 
         if (limit.LimitPercent is < 1 or > 99)
             throw new InvalidDataException($"Limit percentage for {limit.FriendlyName} is outside 1–99%.");
