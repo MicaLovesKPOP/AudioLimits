@@ -59,6 +59,9 @@ public static class ApoEndpointRegistrationPlanner
         if (isRegistered)
             return Block(ApoProvisioningReadiness.AlreadyRegistered,
                 "Equalizer APO is already registered on this endpoint.");
+        if (!state.FxKeyExists)
+            return Block(ApoProvisioningReadiness.UnsupportedRegistration,
+                "This endpoint has no FxProperties registry key. Creating it requires permissions that ordinary endpoint setup does not grant. Use the official advanced Device Selector instead.");
         if (state.EffectSlots.Any(x =>
                 x.Kind != RegistryValueKind.String ||
                 !Guid.TryParse(x.ClassId, out _)))

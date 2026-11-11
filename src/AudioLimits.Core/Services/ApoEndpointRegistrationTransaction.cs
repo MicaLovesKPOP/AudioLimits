@@ -131,7 +131,7 @@ public sealed class ApoEndpointRegistrationTransaction
             using var hklm = RegistryKey.OpenBaseKey(
                 RegistryHive.LocalMachine, RegistryView.Registry64);
             using var endpoint = hklm.OpenSubKey(
-                $@"{RenderRoot}\{guid}", writable: true);
+                $@"{RenderRoot}\{guid}", writable: false);
             using var childRoot = hklm.OpenSubKey(ChildRoot, writable: true);
             if (endpoint is null)
                 return ApoEndpointInstallResult.UnsupportedEndpoint;
@@ -144,7 +144,9 @@ public sealed class ApoEndpointRegistrationTransaction
 
             try
             {
-                RestoreOriginal(endpoint, childRoot, backup);
+                using var writableFx = ApoRegistryValueAccess.OpenExisting(
+                    hklm, $@"{RenderRoot}\{guid}\FxProperties");
+                RestoreOriginal(endpoint, childRoot, backup, writableFx);
                 WriteBackup(path, backup with { Phase = "RolledBack" });
                 return ApoEndpointInstallResult.RolledBack;
             }
@@ -275,7 +277,7 @@ public sealed class ApoEndpointRegistrationTransaction
 
         using var hklm = RegistryKey.OpenBaseKey(
             RegistryHive.LocalMachine, RegistryView.Registry64);
-        using var endpoint = hklm.OpenSubKey($@"{RenderRoot}\{guid}", writable: true);
+        using var endpoint = hklm.OpenSubKey($@"{RenderRoot}\{guid}", writable: false);
         if (endpoint is null)
             return ApoEndpointInstallResult.UnsupportedEndpoint;
 
@@ -287,9 +289,11 @@ public sealed class ApoEndpointRegistrationTransaction
         if (existingChild is not null)
             return ApoEndpointInstallResult.UnsupportedEndpoint;
 
-        using var existingFx = endpoint.OpenSubKey("FxProperties", writable: true);
-        if (snapshot.FxKeyExists && existingFx is null)
-            return ApoEndpointInstallResult.UnsupportedEndpoint;
+        // Windows normally grants value-write permissions on FxProperties,
+        // but denies creating subkeys under the protected endpoint. Request
+        // only KEY_QUERY_VALUE + KEY_SET_VALUE for this existing key.
+        using var existingFx = ApoRegistryValueAccess.OpenExisting(
+            hklm, $@"{RenderRoot}\{guid}\FxProperties");
 
         // Freeze the exact affected original registry values before any write.
         // A snapshot of the whole endpoint is intentionally unnecessary: unrelated
@@ -305,12 +309,9 @@ public sealed class ApoEndpointRegistrationTransaction
         WriteBackup(path, backup); // Durable intent precedes registry mutation.
         try
         {
-            using var fx = existingFx is not null
-                ? endpoint.OpenSubKey("FxProperties", writable: true)
-                : endpoint.CreateSubKey("FxProperties",
-                    RegistryKeyPermissionCheck.ReadWriteSubTree);
-            if (fx is null)
-                throw new UnauthorizedAccessException("FxProperties cannot be created.");
+            // Reuse the narrowly permissioned handle; do not ask for the
+            // broader KEY_WRITE access denied by the audio endpoint ACL.
+            var fx = existingFx;
 
             using var childParent = eapoRoot.CreateSubKey("Child APOs",
                 RegistryKeyPermissionCheck.ReadWriteSubTree);
@@ -354,7 +355,7 @@ public sealed class ApoEndpointRegistrationTransaction
             try
             {
                 using var rollbackChildRoot = eapoRoot.OpenSubKey("Child APOs", writable: true);
-                RestoreOriginal(endpoint, rollbackChildRoot, backup);
+                RestoreOriginal(endpoint, rollbackChildRoot, backup, existingFx);
                 WriteBackup(path, backup with { Phase = "RolledBack" });
                 return ApoEndpointInstallResult.FailedAndRolledBack;
             }
@@ -369,14 +370,21 @@ public sealed class ApoEndpointRegistrationTransaction
     }
 
     internal static void RestoreOriginal(
-        RegistryKey endpoint, RegistryKey? childParent, ApoRegistryBackup backup)
+        RegistryKey endpoint, RegistryKey? childParent, ApoRegistryBackup backup,
+        RegistryKey? writableFxOverride = null)
     {
         // Restore the old effect registrations BEFORE deleting the child APO
         // record, avoiding a window where an installed Equalizer APO has lost
         // access to its original manufacturer's effect chain.
         var removeNewFxKey = false;
-        using (var fx = endpoint.OpenSubKey("FxProperties", writable: true))
+        // The production endpoint's FxProperties handle is opened with only
+        // SET_VALUE and QUERY_VALUE; request broad writable access only in
+        // isolated unit-test keys when no override was provided.
+        using (var openedFx = writableFxOverride is null
+            ? endpoint.OpenSubKey("FxProperties", writable: true)
+            : null)
         {
+            var fx = writableFxOverride ?? openedFx;
             if (fx is not null)
             {
                 foreach (var value in backup.OriginalFxValues)

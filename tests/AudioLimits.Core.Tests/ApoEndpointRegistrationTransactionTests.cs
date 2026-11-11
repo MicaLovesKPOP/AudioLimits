@@ -108,9 +108,11 @@ public sealed class ApoEndpointRegistrationTransactionTests
         using var endpoint = root.CreateSubKey("Endpoint", true)!;
         using var children = root.CreateSubKey("Child APOs", true)!;
         var guid = Guid.NewGuid().ToString("B").ToUpperInvariant();
+        // A legacy/interrupted prior installation may have created a formerly
+        // absent FxProperties key. Recovery still needs to remove it safely.
         var plan = ApoEndpointRegistrationPlanner.Build(
             new ApoFxRegistrationSnapshot(
-                true, false, false, Array.Empty<ApoFxSlotSnapshot>()), false);
+                true, true, false, Array.Empty<ApoFxSlotSnapshot>()), false);
 
         using (var fx = endpoint.CreateSubKey("FxProperties", true)!)
         {

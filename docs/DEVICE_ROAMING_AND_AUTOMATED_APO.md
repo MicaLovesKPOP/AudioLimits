@@ -62,19 +62,22 @@ Minimize -> taskbar; X -> tray; explicit tray Exit -> quit.
 
 ## Intentional limitations and release gates
 
-1. The elevated helper **has not been executed in install mode on a real audio
-   endpoint**. Read-only `--inspect` was tested with the installed Corsair
-   HS80 MAX and LG TV; both correctly returned "already registered". Unit
-   tests exercise pure planning and simulated registry writes/rollback under
-   temporary **HKCU test keys**, never the actual MMDevices HKLM keys.
+1. The elevated helper **has been exercised against a disposable VB-CABLE
+   playback endpoint inside Windows Sandbox**, but NOT against the user's
+   normal audio devices or diverse third-party driver stacks. Read-only
+   `--inspect` was also tested against the host's HS80 MAX and LG TV. The
+   unit suite additionally tests registry writes/rollback under isolated
+   **HKCU test keys**, never actual host MMDevices HKLM keys.
 2. A Windows **restart is required** after our helper reports successful
    registration. We do not silently restart Windows Audio, disconnect a device,
    interrupt a call, or assume the live engine loaded the new effect. A future
    implementation should use a real audio-engine check (for example an audited
    equivalent of the upstream APO named-pipe test), not registry inference.
 3. Driver-protected registry keys may reject an elevated write. The helper
-   fails closed instead of taking ownership or altering Windows ACLs. That
-   driver needs advanced setup until a separately tested secure path exists.
+   opens existing `FxProperties` with narrowly scoped query/set-value rights,
+   without taking ownership or altering Windows ACLs. Endpoints with no
+   `FxProperties` key or insufficient value-write rights fall back to the
+   official advanced Device Selector until a separately tested path exists.
 4. This implementation follows official Equalizer APO **1.4.2** slot and
    child-registration semantics only. Any newer version, fork, or unexpected
    registration fails preflight rather than assuming compatibility.
@@ -114,19 +117,43 @@ Minimize -> taskbar; X -> tray; explicit tray Exit -> quit.
 
 ## Validation so far
 
-- 111 Core tests pass (50 existing + 61 new), including recovery refusal after
+- 113 Core tests pass (50 existing + 63 new), including recovery refusal after
   another installer changes relevant registry values, protected backup ACL
-  checks, and the official missing-FxProperties default install mode.
+  checks, the official missing-FxProperties default install mode, and
+  value-only Windows registry handle access.
 - Full solution Release build succeeds with 0 warnings and 0 errors.
 - The packaged helper's **read-only** mode returned AlreadyRegistered for both
   HS80 MAX and LG TV; invalid arguments rejected. A staging test verified the
   helper launches alongside the published WinUI application using shared DLLs
   instead of bundling a duplicate 25 MB Windows SDK runtime.
-- No live audio device ACLs, APO registrations, services, or user volume
-  settings were changed by this development session.
+- MicaPC's actual HS80 MAX and LG TV audio registrations, Windows Audio
+  service, and user volume settings were not changed during testing. All
+  subsequent audio registry/service experiments occurred in a disposable
+  Windows Sandbox guest.
 - Build script now includes the helper's four small entry files in the canonical
   `app/` payload, but
   a complete installer/ZIP packaging run has **not** been executed.
+- A live sandbox test with VB-Audio's signed virtual cable and hash-verified
+  Equalizer APO 1.4.2 exposed a real Windows ACL failure: `OpenSubKey(...,
+  writable:true)` requests too much access on `FxProperties`. The tested fix
+  uses `RegOpenKeyEx` with only query/set-value rights. The experimental helper
+  then successfully registered SFX/EFX for one active render endpoint, left a
+  second render endpoint untouched, and saved a durable rollback record.
+- After guest reboot a shared-mode stream initialized, `audiodg.exe` loaded
+  `EqualizerAPO.dll`, and an upstream-compatible named-pipe diagnostic received
+  `{deviceGuid, stage:PreMix, phase:Initialize}` for the intended endpoint.
+  PostMix initialization was **not observed** in a valid single-listener run.
+  An attempted parallel-listener version generated access-denied retries and
+  is **not** valid proof about the absent stage.
+- A signal test routed a 997 Hz sine into `CABLE Input` and sampled its paired
+  `CABLE Output` capture endpoint. With Equalizer APO config set to -6 dB,
+  -26 dB, then restored to -6 dB, captured RMS remained approximately
+  0.0667, 0.0666 (0.0673 after AudioSrv restart), 0.0671 respectively;
+  captured peaks remained approximately 0.1000. This **does not demonstrate
+  effective attenuation**. The virtual-cable capture tap may precede effects,
+  or the selected post-mix stage may not be initialized on this driver.
+  Do not ship until processing-stage initialization and effective attenuation
+  can be distinguished and the chosen stage verified.
 - Source is committed on the development branch only when validated; neither
   the 1.0.0 tag nor installed application is changed.
 

@@ -107,14 +107,14 @@ public sealed class ApoEndpointRegistrationPlannerTests
     }
 
     [Fact]
-    public void MissingFxKey_BacksUpAbsenceInsteadOfInventingOriginalEffects()
+    public void MissingFxKey_RequiresAdvancedSetup()
     {
         var result = ApoEndpointRegistrationPlanner.Build(
             Clean() with { FxKeyExists = false }, false);
-        Assert.True(result.CanInstall);
-        Assert.Equal(ApoInstallModeHint.LegacyLfxGfx, result.Mode);
-        Assert.Equal("!KEY", Find(result.ChildValues,
-            ApoEndpointRegistrationPlanner.SlotName(2)).Text);
+        Assert.False(result.CanInstall);
+        Assert.Equal(ApoProvisioningReadiness.UnsupportedRegistration, result.Readiness);
+        Assert.Empty(result.FxChanges);
+        Assert.Contains("FxProperties", result.Explanation);
     }
 
     private static ApoRegistryMutation Find(

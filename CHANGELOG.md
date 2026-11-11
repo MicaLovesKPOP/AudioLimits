@@ -8,10 +8,10 @@
 - Remember hardware identity with saved caps, offer a Restore saved limit action, and automatically restore a consistent serialized receiver cap while running in the tray **only when Equalizer APO is already registered to the new endpoint**.
 - Keep changes inside the existing safe limiter transaction, with ambiguous identities, conflicting saved caps, and missing processing left inactive instead of guessed.
 - Inspect Windows playback APO slots without changing them. Show per-device setup diagnostics for disabled enhancements, existing manufacturer effects, missing/invalid registration, and genuinely empty effects slots; open Windows sound settings when enhancements are disabled.
-- Add a planning-only upstream-compatible installation-mode advisor (legacy LFX/GFX, standard SFX/EFX, or combined Bluetooth SFX/MFX); do not perform elevated endpoint registration yet.
+- Add an upstream-compatible installation-mode advisor (legacy LFX/GFX, standard SFX/EFX, or combined Bluetooth SFX/MFX), now used by the experimental elevated endpoint-registration helper.
 - On remembered-cap restoration, never automatically raise Windows endpoint volume while APO runtime activation is unverified; preserve the regular limit-setting behavior elsewhere.
 - Experimental one-click device setup: a separately elevated, endpoint-scoped helper can register official Equalizer APO 1.4.2 for a selected playback endpoint with preserved manufacturer effects, admin-owned protected backups, bounded rollback, and a recovery option for interrupted changes. Windows restart is required before applying limits; no audio service restart occurs automatically.
-- This installer has NOT yet been tested on a newly provisioned physical endpoint, and neither the normal release nor the installed app has been replaced. The safe fallback remains the official Device Selector. New versioning, security/licensing review, audio-engine verification, and physical acceptance tests are required before a public release.
+- Controlled Windows Sandbox testing succeeded in registering Equalizer APO on a real VB-CABLE playback endpoint without modifying a second endpoint. A query/set-value-only registry access fix was required for protected Windows FX keys. The DLL loaded into audiodg.exe, but a -6 to -26 dB preamp change did not change captured virtual-cable levels; post-mix initialization remains unverified. Do not release until effective processing is verified; installed Audio Limits 1.0.0 is unchanged.
 
 ## 1.0.0
 
