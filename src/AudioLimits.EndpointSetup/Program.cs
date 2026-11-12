@@ -26,10 +26,39 @@ internal static class Program
                 return (int)plan.Readiness + 20;
             }
 
-            if (args[0] != "--install" && args[0] != "--restore")
+            if (args[0] != "--install" && args[0] != "--restore" &&
+                args[0] != "--verify" && args[0] != "--switch-mode")
                 return 10;
 
             var transaction = new ApoEndpointRegistrationTransaction(apo);
+            if (args[0] == "--switch-mode")
+            {
+                var mode = transaction.TrySwitchToCompatibleMode(endpoint);
+                AppLog.Info($"Endpoint mode fallback {endpoint}: {mode}");
+                return mode switch
+                {
+                    ApoModeFallbackResult.SwitchedRestartRequired => 13,
+                    ApoModeFallbackResult.UnsupportedOrChanged => 14,
+                    ApoModeFallbackResult.NotAuthorized => 3,
+                    ApoModeFallbackResult.FailedAndRolledBack => 15,
+                    ApoModeFallbackResult.RollbackIncomplete => 16,
+                    _ => 12
+                };
+            }
+            if (args[0] == "--verify")
+            {
+                var verification = transaction.VerifyActivation(endpoint);
+                AppLog.Info($"Endpoint stage verification {endpoint}: {verification}");
+                return verification switch
+                {
+                    ApoEndpointVerificationResult.StageInitialized => 7,
+                    ApoEndpointVerificationResult.AlreadyInitialized => 7,
+                    ApoEndpointVerificationResult.MissingRequiredStage => 8,
+                    ApoEndpointVerificationResult.RestartRequired => 9,
+                    ApoEndpointVerificationResult.NoAdministratorPrivileges => 3,
+                    _ => 12
+                };
+            }
             var result = args[0] == "--restore"
                 ? transaction.RestoreInterrupted(endpoint)
                 : transaction.Install(endpoint);

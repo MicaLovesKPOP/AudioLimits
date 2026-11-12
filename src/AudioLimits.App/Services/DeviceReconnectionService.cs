@@ -96,7 +96,7 @@ public sealed class DeviceReconnectionService
             if (_stopToken.IsCancellationRequested)
                 return;
             if (_failedEndpointIds.Contains(device.EndpointGuid) ||
-                ApoEndpointRegistrationTransaction.IsAwaitingAudioRestart(device.EndpointGuid) ||
+                ApoEndpointRegistrationTransaction.IsSetupUnsafeToUse(device.EndpointGuid) ||
                 !_apo.IsActiveForEndpoint(device.EndpointGuid) ||
                 _limits.FindRememberedLimit(device, active).Kind !=
                     RememberedLimitMatchKind.Automatic)

@@ -17,10 +17,31 @@ public enum ApoEndpointInstallResult
     RollbackIncomplete
 }
 
+public enum ApoModeFallbackResult
+{
+    SwitchedRestartRequired,
+    UnsupportedOrChanged,
+    NotAuthorized,
+    FailedAndRolledBack,
+    RollbackIncomplete
+}
+
+public enum ApoEndpointVerificationResult
+{
+    StageInitialized,
+    AlreadyInitialized,
+    RestartRequired,
+    MissingRequiredStage,
+    UnsafeOrUnsupported,
+    NoAdministratorPrivileges
+}
+
 public enum ApoSetupPendingState
 {
     None,
     RestartRequired,
+    ActivationVerificationRequired,
+    CompatibilityFixRequired,
     RecoveryRequired
 }
 
@@ -51,13 +72,7 @@ public sealed class ApoEndpointRegistrationTransaction
             var state = ReadBackup(path);
             var bootTime = DateTimeOffset.UtcNow -
                 TimeSpan.FromMilliseconds(Environment.TickCount64);
-            if (state.Phase == "RolledBack")
-                return ApoSetupPendingState.None;
-            if (state.Phase == "RegisteredRestartRequired")
-                return RequiresRestart(state, bootTime)
-                    ? ApoSetupPendingState.RestartRequired
-                    : ApoSetupPendingState.None;
-            return ApoSetupPendingState.RecoveryRequired;
+            return ClassifyPendingState(state, bootTime);
         }
         catch
         {
@@ -65,8 +80,23 @@ public sealed class ApoEndpointRegistrationTransaction
         }
     }
 
-    public static bool IsAwaitingAudioRestart(string endpointGuid) =>
+    // Prevent new or automatic caps until a newly registered endpoint has
+    // passed both the requested restart and an actual APO-stage init test.
+    public static bool IsSetupUnsafeToUse(string endpointGuid) =>
         GetPendingState(endpointGuid) != ApoSetupPendingState.None;
+
+    internal static ApoSetupPendingState ClassifyPendingState(
+        ApoRegistryBackup state, DateTimeOffset bootTime) =>
+        state.Phase switch
+        {
+            "RolledBack" or "StageInitialized" => ApoSetupPendingState.None,
+            "RegisteredRestartRequired" or "ModeSwitchRestartRequired" =>
+                RequiresRestart(state, bootTime)
+                    ? ApoSetupPendingState.RestartRequired
+                    : ApoSetupPendingState.ActivationVerificationRequired,
+            "StageNotInitialized" => ApoSetupPendingState.CompatibilityFixRequired,
+            _ => ApoSetupPendingState.RecoveryRequired
+        };
 
     internal static bool RequiresRestart(
         ApoRegistryBackup state, DateTimeOffset bootTime) =>
@@ -78,6 +108,9 @@ public sealed class ApoEndpointRegistrationTransaction
             // does not prove the APO is audible or running in the engine.
             "RegisteredRestartRequired" =>
                 state.CreatedUtc >= bootTime.AddSeconds(-3),
+            "ModeSwitchRestartRequired" =>
+                state.FallbackChangedUtc is null ||
+                state.FallbackChangedUtc >= bootTime.AddSeconds(-3),
             _ => true
         };
 
@@ -94,6 +127,212 @@ public sealed class ApoEndpointRegistrationTransaction
         try
         {
             return InstallLocked(guid);
+        }
+        finally
+        {
+            mutex.ReleaseMutex();
+        }
+    }
+
+    /// <summary>
+    /// A registry registration isn't evidence that audiodg initialized the
+    /// processing stage selected by Audio Limits. Gate the newly provisioned
+    /// endpoint until that exact stage has initialized during silent playback.
+    /// No audio service restart, endpoint-volume change, or test sound.
+    /// </summary>
+    public ApoEndpointVerificationResult VerifyActivation(string endpointGuid)
+    {
+        var guid = Normalize(endpointGuid);
+        if (!IsAdministrator())
+            return ApoEndpointVerificationResult.NoAdministratorPrivileges;
+
+        using var mutex = new Mutex(false, @"Global\AudioLimits.EndpointSetup.v1");
+        if (!mutex.WaitOne(TimeSpan.FromSeconds(15)))
+            return ApoEndpointVerificationResult.UnsafeOrUnsupported;
+
+        try
+        {
+            EnsureSecureBackupDirectory();
+            var path = BackupPath(guid);
+            if (!File.Exists(path) || !VerifyRegisteredApoClasses() ||
+                !_apo.IsActiveForEndpoint(guid))
+                return ApoEndpointVerificationResult.UnsafeOrUnsupported;
+
+            var backup = ReadBackup(path);
+            if (backup.EndpointGuid != guid)
+                return ApoEndpointVerificationResult.UnsafeOrUnsupported;
+
+            var pending = GetPendingState(guid);
+            if (pending == ApoSetupPendingState.None &&
+                backup.Phase == "StageInitialized")
+                return ApoEndpointVerificationResult.AlreadyInitialized;
+            if (pending == ApoSetupPendingState.RestartRequired)
+                return ApoEndpointVerificationResult.RestartRequired;
+            if (pending != ApoSetupPendingState.ActivationVerificationRequired ||
+                backup.Phase is not ("RegisteredRestartRequired" or "ModeSwitchRestartRequired"))
+                return ApoEndpointVerificationResult.UnsafeOrUnsupported;
+
+            if (Process.GetProcessesByName("DeviceSelector").Length > 0 ||
+                Process.GetProcessesByName("Configurator").Length > 0)
+                return ApoEndpointVerificationResult.UnsafeOrUnsupported;
+
+            var stage = _apo.GetPreferredProcessingStage(guid);
+            if (stage is not (ApoProcessingStage.PreMix or ApoProcessingStage.PostMix))
+                return ApoEndpointVerificationResult.UnsafeOrUnsupported;
+
+            // A missing event is a fail-closed result: the selected stage may
+            // not be supported by this driver (as demonstrated by VB-CABLE
+            // with SFX/EFX). Do not infer success from a loaded DLL.
+            // Mutex ownership is bound to the thread that called WaitOne.
+            // Blocking the dedicated elevated helper process here keeps
+            // acquisition and ReleaseMutex on the same thread.
+            var detected = ApoRuntimeStageProbe.TryVerifyAsync(
+                guid, stage.ToString()).GetAwaiter().GetResult();
+            if (!detected)
+            {
+                // A real failed init test is required before a one-time
+                // compatibility-mode change can even be offered.
+                WriteBackup(path, backup with { Phase = "StageNotInitialized" });
+                return ApoEndpointVerificationResult.MissingRequiredStage;
+            }
+
+            WriteBackup(path, backup with { Phase = "StageInitialized" });
+            AppLog.Info(
+                $"APO_STAGE_INIT_VERIFIED endpoint={guid}; stage={stage}; no-volume-change");
+            return ApoEndpointVerificationResult.StageInitialized;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error($"Audio stage verification failed for {guid}", ex);
+            return ApoEndpointVerificationResult.UnsafeOrUnsupported;
+        }
+        finally
+        {
+            mutex.ReleaseMutex();
+        }
+    }
+
+    public static bool CanOfferCompatibleMode(string endpointGuid)
+    {
+        try
+        {
+            var backup = ReadBackup(BackupPath(endpointGuid));
+            return backup.Phase == "StageNotInitialized" &&
+                backup.FallbackIntendedFxChanges is null &&
+                backup.FallbackOriginalFxValues is null &&
+                backup.OriginalFxValues.Count > 0 &&
+                backup.OriginalFxValues.All(x => !x.IsPresent);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// One bounded fallback after a *real* failed stage-init test. Only
+    /// clean SFX/EFX registrations created by our own helper are eligible.
+    /// This never restarts Windows Audio or raises the endpoint volume.
+    /// </summary>
+    public ApoModeFallbackResult TrySwitchToCompatibleMode(string endpointGuid)
+    {
+        var guid = Normalize(endpointGuid);
+        if (!IsAdministrator())
+            return ApoModeFallbackResult.NotAuthorized;
+
+        using var mutex = new Mutex(false, @"Global\AudioLimits.EndpointSetup.v1");
+        if (!mutex.WaitOne(TimeSpan.FromSeconds(15)))
+            return ApoModeFallbackResult.UnsupportedOrChanged;
+
+        try
+        {
+            if (!VerifyRegisteredApoClasses() ||
+                !_apo.IsActiveForEndpoint(guid) ||
+                _apo.GetPreferredProcessingStage(guid) != ApoProcessingStage.PostMix ||
+                Process.GetProcessesByName("DeviceSelector").Length > 0 ||
+                Process.GetProcessesByName("Configurator").Length > 0 ||
+                !new AudioDeviceService().GetActiveRenderDevices().Any(x =>
+                    string.Equals(x.EndpointGuid, guid, StringComparison.OrdinalIgnoreCase)))
+                return ApoModeFallbackResult.UnsupportedOrChanged;
+
+            EnsureSecureBackupDirectory();
+            var path = BackupPath(guid);
+            if (!File.Exists(path))
+                return ApoModeFallbackResult.UnsupportedOrChanged;
+
+            var backup = ReadBackup(path);
+            if (backup.EndpointGuid != guid)
+                return ApoModeFallbackResult.UnsupportedOrChanged;
+
+            using var hklm = RegistryKey.OpenBaseKey(
+                RegistryHive.LocalMachine, RegistryView.Registry64);
+            using var fx = ApoRegistryValueAccess.OpenExisting(
+                hklm, $@"{RenderRoot}\{guid}\FxProperties");
+            using var child = hklm.OpenSubKey($@"{ChildRoot}\{guid}");
+            var plan = ApoModeFallbackPlanner.Build(backup, fx, child);
+            if (!plan.CanSwitch)
+            {
+                AppLog.Info($"APO fallback refused for {guid}: {plan.Reason}");
+                return ApoModeFallbackResult.UnsupportedOrChanged;
+            }
+
+            var original = Capture(fx, plan.Changes.Select(x => x.Name));
+            var prepared = backup with
+            {
+                Phase = "ModeSwitchPrepared",
+                FallbackChangedUtc = DateTimeOffset.UtcNow,
+                FallbackOriginalFxValues = original,
+                FallbackIntendedFxChanges = plan.Changes.ToArray()
+            };
+            // Recovery journal must reach disk before the first registry write.
+            WriteBackup(path, prepared);
+            try
+            {
+                foreach (var change in plan.Changes)
+                    Apply(fx, change);
+                foreach (var change in plan.Changes)
+                    Verify(fx, change);
+
+                WriteBackup(path, prepared with
+                {
+                    Phase = "ModeSwitchRestartRequired"
+                });
+                AppLog.Info(
+                    $"APO mode fallback SFX/EFX -> SFX/MFX registered for {guid}; restart required");
+                return ApoModeFallbackResult.SwitchedRestartRequired;
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error($"APO mode fallback failed for {guid}", ex);
+                try
+                {
+                    ApoModeFallbackPlanner.RestoreCaptured(fx, prepared);
+                    WriteBackup(path, prepared with { Phase = "StageNotInitialized" });
+                    return ApoModeFallbackResult.FailedAndRolledBack;
+                }
+                catch (Exception rollbackError)
+                {
+                    AppLog.Error(
+                        $"APO mode fallback rollback incomplete for {guid}", rollbackError);
+                    try
+                    {
+                        WriteBackup(path, prepared with
+                        {
+                            Phase = "ModeSwitchRollbackIncomplete"
+                        });
+                    }
+                    catch (Exception writeError)
+                    {
+                        AppLog.Error("Could not persist mode rollback failure state", writeError);
+                    }
+                    return ApoModeFallbackResult.RollbackIncomplete;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error($"Compatibility mode change aborted for {guid}", ex);
+            return ApoModeFallbackResult.UnsupportedOrChanged;
         }
         finally
         {
@@ -124,8 +363,17 @@ public sealed class ApoEndpointRegistrationTransaction
             if (!File.Exists(path))
                 return ApoEndpointInstallResult.UnsupportedEndpoint;
             var backup = ReadBackup(path);
-            if (backup.EndpointGuid != guid ||
-                backup.Phase is not ("Prepared" or "RollbackIncomplete"))
+            if (backup.EndpointGuid != guid)
+                return ApoEndpointInstallResult.UnsupportedEndpoint;
+
+            // Repair an interrupted mode switch by reverting only the four
+            // values in its durable journal. Never delete the original
+            // Equalizer APO installation or its manufacturer-effect chain.
+            if (backup.Phase is "ModeSwitchPrepared" or
+                "ModeSwitchRollbackIncomplete")
+                return RestoreInterruptedModeSwitch(guid, path, backup);
+
+            if (backup.Phase is not ("Prepared" or "RollbackIncomplete"))
                 return ApoEndpointInstallResult.UnsupportedEndpoint;
 
             using var hklm = RegistryKey.OpenBaseKey(
@@ -164,6 +412,47 @@ public sealed class ApoEndpointRegistrationTransaction
         }
     }
 
+    private ApoEndpointInstallResult RestoreInterruptedModeSwitch(
+        string guid, string path, ApoRegistryBackup backup)
+    {
+        try
+        {
+            using var hklm = RegistryKey.OpenBaseKey(
+                RegistryHive.LocalMachine, RegistryView.Registry64);
+            using var readFx = hklm.OpenSubKey(
+                $@"{RenderRoot}\{guid}\FxProperties");
+            using var child = hklm.OpenSubKey($@"{ChildRoot}\{guid}");
+            if (!ApoModeFallbackPlanner.CanRestoreInterrupted(
+                    backup, readFx, child))
+                return ApoEndpointInstallResult.UnsupportedEndpoint;
+
+            using var writableFx = ApoRegistryValueAccess.OpenExisting(
+                hklm, $@"{RenderRoot}\{guid}\FxProperties");
+            ApoModeFallbackPlanner.RestoreCaptured(writableFx, backup);
+            WriteBackup(path, backup with { Phase = "StageNotInitialized" });
+            AppLog.Info(
+                $"Interrupted APO mode switch safely rolled back for {guid}");
+            return ApoEndpointInstallResult.RolledBack;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error(
+                $"Interrupted APO mode switch recovery failed for {guid}", ex);
+            try
+            {
+                WriteBackup(path, backup with
+                {
+                    Phase = "ModeSwitchRollbackIncomplete"
+                });
+            }
+            catch (Exception journalError)
+            {
+                AppLog.Error("Could not save incomplete mode-switch recovery", journalError);
+            }
+            return ApoEndpointInstallResult.RollbackIncomplete;
+        }
+    }
+
     internal static bool CanRestoreOwnValues(
         RegistryKey? fx, RegistryKey? child, ApoRegistryBackup backup)
     {
@@ -192,7 +481,7 @@ public sealed class ApoEndpointRegistrationTransaction
         return true;
     }
 
-    private static bool MatchesOriginal(RegistryKey? key, RegistryValueBackup original)
+    internal static bool MatchesOriginal(RegistryKey? key, RegistryValueBackup original)
     {
         var found = key?.GetValueNames().Contains(
             original.Name, StringComparer.OrdinalIgnoreCase) == true;
@@ -217,7 +506,7 @@ public sealed class ApoEndpointRegistrationTransaction
         };
     }
 
-    private static bool MatchesMutation(RegistryKey? key, ApoRegistryMutation mutation)
+    internal static bool MatchesMutation(RegistryKey? key, ApoRegistryMutation mutation)
     {
         var found = key?.GetValueNames().Contains(
             mutation.Name, StringComparer.OrdinalIgnoreCase) == true;
@@ -438,7 +727,7 @@ public sealed class ApoEndpointRegistrationTransaction
         return values;
     }
 
-    private static void Restore(RegistryKey key, RegistryValueBackup value)
+    internal static void Restore(RegistryKey key, RegistryValueBackup value)
     {
         object data = value.Kind switch
         {
@@ -645,4 +934,7 @@ public sealed record ApoRegistryBackup(
     string EndpointGuid, DateTimeOffset CreatedUtc, string Phase,
     bool HadFxKey, IReadOnlyList<RegistryValueBackup> OriginalFxValues,
     IReadOnlyList<ApoRegistryMutation> IntendedFxChanges,
-    IReadOnlyList<ApoRegistryMutation> IntendedChildValues);
+    IReadOnlyList<ApoRegistryMutation> IntendedChildValues,
+    DateTimeOffset? FallbackChangedUtc = null,
+    IReadOnlyList<RegistryValueBackup>? FallbackOriginalFxValues = null,
+    IReadOnlyList<ApoRegistryMutation>? FallbackIntendedFxChanges = null);

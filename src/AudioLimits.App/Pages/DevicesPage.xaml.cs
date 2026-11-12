@@ -561,6 +561,126 @@ public sealed partial class DevicesPage : Page
             return false;
         }
 
+        if (assessment.Status == ApoEndpointSetupStatus.CompatibilityFixRequired)
+        {
+            var available = App.Services.Provisioning.HelperAvailable &&
+                ApoEndpointRegistrationTransaction.CanOfferCompatibleMode(
+                    device.Device.EndpointGuid);
+            var modeDialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "Audio processing mode needs attention",
+                Content = new TextBlock
+                {
+                    Text = assessment.Explanation + "\n\n" +
+                        (available
+                            ? "Audio Limits can try the SFX/MFX compatibility mode on this playback " +
+                              "device only. Windows will request administrator permission. " +
+                              "The original audio-effect values are saved for recovery. " +
+                              "A Windows restart and another silent verification are required. " +
+                              "No audio service is restarted or volume increased automatically."
+                            : "Automatic fallback isn't available. The original setup will be " +
+                              "left unchanged; use advanced setup if you want to troubleshoot."),
+                    TextWrapping = TextWrapping.Wrap
+                },
+                PrimaryButtonText = available ? "Try compatible mode" : "",
+                SecondaryButtonText = "Advanced setup",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close
+            };
+            var choice = await modeDialog.ShowAsync();
+            if (choice == ContentDialogResult.Secondary)
+            {
+                await OpenAudioSetupAsync();
+                return false;
+            }
+            if (choice != ContentDialogResult.Primary || !available)
+                return false;
+
+            _operationInProgress = true;
+            SetAllActionsEnabled(false);
+            EndpointSetupOutcome result;
+            try
+            {
+                result = await App.Services.Provisioning.TryCompatibleModeAsync(
+                    device.Device.EndpointGuid);
+                await RefreshDevicesAsync();
+                ConfigureStateInfo();
+            }
+            finally
+            {
+                _operationInProgress = false;
+                SetAllActionsEnabled(true);
+            }
+
+            if (result.Succeeded)
+                ShowOperationInfo("Compatibility mode registered; restart required",
+                    result.Message);
+            else
+                ShowOperationError("Compatibility mode wasn't applied", result.Message);
+            return false;
+        }
+
+        if (assessment.Status == ApoEndpointSetupStatus.ActivationVerificationRequired)
+        {
+            var helperAvailable = App.Services.Provisioning.HelperAvailable;
+            var verificationDialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "Check this device's audio processing",
+                Content = new TextBlock
+                {
+                    Text = assessment.Explanation + "\n\n" +
+                        (helperAvailable
+                            ? "Audio Limits can check this device using a silent playback stream. " +
+                              "Administrator approval is needed for a temporary Equalizer APO diagnostic channel. " +
+                              "The test does not change volume or restart Windows Audio."
+                            : "The setup helper is missing. Repair Audio Limits or open advanced setup."),
+                    TextWrapping = TextWrapping.Wrap
+                },
+                PrimaryButtonText = helperAvailable ? "Verify processing" : "",
+                SecondaryButtonText = "Advanced setup",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close
+            };
+
+            var selection = await verificationDialog.ShowAsync();
+            if (selection == ContentDialogResult.Secondary)
+            {
+                await OpenAudioSetupAsync();
+                return false;
+            }
+            if (selection != ContentDialogResult.Primary || !helperAvailable)
+                return false;
+
+            _operationInProgress = true;
+            SetAllActionsEnabled(false);
+            EndpointSetupOutcome outcome;
+            try
+            {
+                outcome = await App.Services.Provisioning.VerifyAsync(
+                    device.Device.EndpointGuid);
+                await RefreshDevicesAsync();
+                ConfigureStateInfo();
+            }
+            finally
+            {
+                _operationInProgress = false;
+                SetAllActionsEnabled(true);
+            }
+
+            if (!outcome.Succeeded)
+            {
+                ShowOperationError("Audio processing wasn't verified", outcome.Message);
+                return false;
+            }
+
+            ShowOperationInfo("Audio processing initialized", outcome.Message);
+            return limits.CanModifyLimits &&
+                !ApoEndpointRegistrationTransaction.IsSetupUnsafeToUse(
+                    device.Device.EndpointGuid);
+        }
+
         if (assessment.Status == ApoEndpointSetupStatus.SetupRepairRequired)
         {
             var helperAvailable = App.Services.Provisioning.HelperAvailable;

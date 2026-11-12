@@ -25,6 +25,12 @@ public sealed class EndpointSetupService
     public Task<EndpointSetupOutcome> RestoreAsync(string endpointGuid) =>
         RunAsync(endpointGuid, "--restore");
 
+    public Task<EndpointSetupOutcome> VerifyAsync(string endpointGuid) =>
+        RunAsync(endpointGuid, "--verify");
+
+    public Task<EndpointSetupOutcome> TryCompatibleModeAsync(string endpointGuid) =>
+        RunAsync(endpointGuid, "--switch-mode");
+
     private async Task<EndpointSetupOutcome> RunAsync(string endpointGuid, string operation)
     {
         if (!Guid.TryParse(endpointGuid, out var parsed))
@@ -57,6 +63,49 @@ public sealed class EndpointSetupService
                     ?? throw new InvalidOperationException(
                         "Windows did not start the audio setup helper.");
                 await process.WaitForExitAsync();
+
+                if (operation == "--switch-mode")
+                {
+                    return process.ExitCode switch
+                    {
+                        13 => new(true,
+                            "A compatible Equalizer APO processing mode has been registered for this playback device. " +
+                            "Restart Windows, then verify processing again before setting a limit. " +
+                            "Windows volume and manufacturer audio effects were not changed."),
+                        14 => new(false,
+                            "The automatic compatibility change is unavailable because a driver effect, previous attempt, " +
+                            "or saved registry value is different than expected. No new change was applied; use advanced setup."),
+                        15 => new(false,
+                            "The compatibility change failed, but the original audio effect values were restored. " +
+                            "A volume limit remains inactive."),
+                        16 => new(false,
+                            "The compatibility change could not be completely rolled back. " +
+                            "Don't rely on the volume limit. Use the recovery option before trying again."),
+                        3 => new(false,
+                            "Windows administrator permission is required for this device-only compatibility change."),
+                        _ => new(false,
+                            "The compatibility helper couldn't complete the change. No limit was applied.")
+                    };
+                }
+
+                if (operation == "--verify")
+                {
+                    return process.ExitCode switch
+                    {
+                        7 => new(true,
+                            "Equalizer APO reported that the selected audio processing stage initialized for this playback device during a silent shared-mode test. " +
+                            "You can now set a limit; this initialization check cannot guarantee every audio path is attenuated."),
+                        8 => new(false,
+                            "The selected Equalizer APO processing stage did not initialize during the test. " +
+                            "No limit was applied. Your audio driver may need a different processing mode in advanced setup."),
+                        9 => new(false,
+                            "Windows must be restarted before checking the newly registered audio processing stage."),
+                        3 => new(false,
+                            "Administrator permission is required for the temporary Equalizer APO diagnostic channel. No limit was applied."),
+                        _ => new(false,
+                            "Audio processing could not be verified. No limit was applied; consult the log or advanced audio setup.")
+                    };
+                }
 
                 if (operation == "--restore")
                 {

@@ -18,6 +18,8 @@ public enum ApoEndpointSetupStatus
     UnusualEffectValues,
     MissingFxProperties,
     AwaitingAudioRestart,
+    ActivationVerificationRequired,
+    CompatibilityFixRequired,
     SetupRepairRequired
 }
 
@@ -127,6 +129,25 @@ public sealed class ApoEndpointSetupInspector
                 ApoEndpointSetupStatus.AwaitingAudioRestart,
                 snapshot.EffectSlots.Count, true,
                 "Equalizer APO registration was changed for this device. Restart Windows before Audio Limits applies a limit. The effect is not yet verified active in the audio engine.");
+        if (pending == ApoSetupPendingState.CompatibilityFixRequired)
+        {
+            var eligible = ApoEndpointRegistrationTransaction.CanOfferCompatibleMode(guid);
+            return new ApoEndpointSetupAssessment(
+                ApoEndpointSetupStatus.CompatibilityFixRequired,
+                snapshot.EffectSlots.Count, true,
+                eligible
+                    ? "The playback device did not initialize Equalizer APO's selected post-mix stage. " +
+                      "The cap is NOT active. Audio Limits can try one bounded compatibility mode with " +
+                      "the original registry values protected for rollback."
+                    : "The required processing stage failed its initialization test. " +
+                      "A compatibility change was already tried or this driver has settings that must be " +
+                      "handled manually. The cap is NOT active. Open advanced audio setup.");
+        }
+        if (pending == ApoSetupPendingState.ActivationVerificationRequired)
+            return new ApoEndpointSetupAssessment(
+                ApoEndpointSetupStatus.ActivationVerificationRequired,
+                snapshot.EffectSlots.Count, true,
+                "Equalizer APO is registered, but Audio Limits has not yet verified that this playback device initializes the required audio processing stage. The cap is NOT active. Verify the processing stage before applying a limit.");
         return ApoEndpointSetupAssessment.Evaluate(snapshot, registered);
     }
 

@@ -117,7 +117,7 @@ Minimize -> taskbar; X -> tray; explicit tray Exit -> quit.
 
 ## Validation so far
 
-- 113 Core tests pass (50 existing + 63 new), including recovery refusal after
+- 150 Core tests pass, including recovery refusal after
   another installer changes relevant registry values, protected backup ACL
   checks, the official missing-FxProperties default install mode, and
   value-only Windows registry handle access.
@@ -150,10 +150,22 @@ Minimize -> taskbar; X -> tray; explicit tray Exit -> quit.
   -26 dB, then restored to -6 dB, captured RMS remained approximately
   0.0667, 0.0666 (0.0673 after AudioSrv restart), 0.0671 respectively;
   captured peaks remained approximately 0.1000. This **does not demonstrate
-  effective attenuation**. The virtual-cable capture tap may precede effects,
-  or the selected post-mix stage may not be initialized on this driver.
-  Do not ship until processing-stage initialization and effective attenuation
-  can be distinguished and the chosen stage verified.
+  effective attenuation**. A follow-up sandbox-only SFX/MFX experiment did
+  demonstrate actual attenuation at this same capture tap, making a missing
+  EFX post-mix initialization the likely cause of the SFX/EFX failure.
+- With SFX/MFX, both PreMix and PostMix initialization events were observed
+  for the target. The unchanged Windows volume and a -6 to -26 dB preamp
+  change yielded RMS 0.033718 to 0.003352 (approximately -20.05 dB), and
+  restoring -6 dB returned RMS to 0.033592. This confirms effective signal
+  attenuation in SFX/MFX on the disposable virtual endpoint.
+- Evidence from both the first manual experiment and the automatic fallback
+  is documented in docs/SFX_MFX_SANDBOX_EVIDENCE_2026-11-11.md and
+  docs/ONE_CLICK_FALLBACK_SANDBOX_2026-11-12.md. The new implementation now
+  verifies actual initialization of the selected processing stage and supports
+  a single reversible SFX/EFX-to-SFX/MFX attempt after a measured initialization
+  failure. Broader driver, user-session UAC, packaging, signing and release QA
+  remain mandatory; a stage-init event alone is not a guarantee that every
+  audio path is attenuated.
 - Source is committed on the development branch only when validated; neither
   the 1.0.0 tag nor installed application is changed.
 

@@ -44,7 +44,7 @@ public sealed class DeviceViewModel : INotifyPropertyChanged, IDisposable
         _limitActive = _limit is not null && limits.IsLimitActive(_limit);
         _apoInstalled = apo.IsInstalled;
         ApoReady = apo.IsActiveForEndpoint(device.EndpointGuid) &&
-            !ApoEndpointRegistrationTransaction.IsAwaitingAudioRestart(device.EndpointGuid);
+            !ApoEndpointRegistrationTransaction.IsSetupUnsafeToUse(device.EndpointGuid);
         _baseActionsEnabled = limits.CanModifyLimits;
 
         var candidateCurve = _limit?.TryGetCurve();

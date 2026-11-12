@@ -2,6 +2,10 @@
 
 ## Unreleased (post-1.0.0)
 
+- Verify Equalizer APO's selected processing stage using a silent shared-mode playback stream and a restricted, temporary diagnostic pipe. Keep newly provisioned endpoints inactive until stage initialization is confirmed after reboot; initial registration alone never enables a cap.
+- On a demonstrated failed post-mix initialization, offer one user-approved SFX/EFX-to-SFX/MFX compatibility attempt for previously clean endpoints only. Save four original registry values before changing them, refuse manufacturer effects or changed layouts, require reboot plus a new verification, and support crash-safe rollback.
+- Windows Sandbox acceptance verified exit 8 (stage failed), exit 13 (mode changed), exit 14 (repeat refused), exit 9 (restart pending), exit 7 (new mode initialized), and exit 6 (restore original entries from interrupted-switch journal). Under SFX/MFX the repeated A/B/A test produced approximately -19.97 dB measured attenuation for a requested -20 dB preamp adjustment. The installed application remains unchanged.
+
 - Change the normal window controls: minimize remains on the taskbar, X hides to the tray, and explicit tray Exit quits safely.
 - Refresh the active playback-device list and Equalizer APO registration while the Devices page is open, detecting changes made in Device Selector or after USB endpoint re-enumeration without restarting Audio Limits.
 - Identify serialized USB receivers across new Windows endpoint IDs via Windows PnP ancestry; conservatively recognize older name-only presets without silently applying them.
@@ -11,7 +15,7 @@
 - Add an upstream-compatible installation-mode advisor (legacy LFX/GFX, standard SFX/EFX, or combined Bluetooth SFX/MFX), now used by the experimental elevated endpoint-registration helper.
 - On remembered-cap restoration, never automatically raise Windows endpoint volume while APO runtime activation is unverified; preserve the regular limit-setting behavior elsewhere.
 - Experimental one-click device setup: a separately elevated, endpoint-scoped helper can register official Equalizer APO 1.4.2 for a selected playback endpoint with preserved manufacturer effects, admin-owned protected backups, bounded rollback, and a recovery option for interrupted changes. Windows restart is required before applying limits; no audio service restart occurs automatically.
-- Controlled Windows Sandbox testing succeeded in registering Equalizer APO on a real VB-CABLE playback endpoint without modifying a second endpoint. A query/set-value-only registry access fix was required for protected Windows FX keys. The DLL loaded into audiodg.exe, but a -6 to -26 dB preamp change did not change captured virtual-cable levels; post-mix initialization remains unverified. Do not release until effective processing is verified; installed Audio Limits 1.0.0 is unchanged.
+- Controlled Windows Sandbox testing confirmed mode-dependent audio processing: SFX/EFX registered but did not attenuate the VB-CABLE output, whereas sandbox-only SFX/MFX produced both initialization events and the expected -20.05 dB measured reduction for a -20 dB preamp change. The release gate is now automatic runtime stage verification and safe mode fallback; installed Audio Limits 1.0.0 is unchanged.
 
 ## 1.0.0
 
